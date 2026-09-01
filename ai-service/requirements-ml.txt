@@ -1,0 +1,6 @@
+# Install alongside requirements.txt to run a real trained model.
+#   pip install -r requirements.txt -r requirements-ml.txt
+# Then set AI_MODEL_PATH to a YOLO .pt checkpoint. See docs/AI.md.
+-r requirements.txt
+ultralytics==8.3.55
+torch==2.5.1

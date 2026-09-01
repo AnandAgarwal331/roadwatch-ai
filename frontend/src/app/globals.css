@@ -1,0 +1,200 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 99%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Civic blue: authoritative without feeling like a warning. */
+    --primary: 214 84% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 214 32% 95%;
+    --secondary-foreground: 222 47% 15%;
+
+    --muted: 214 32% 96%;
+    --muted-foreground: 215 16% 44%;
+
+    --accent: 187 72% 34%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 60% 34%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 32 90% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 25% 89%;
+    --input: 214 25% 89%;
+    --ring: 214 84% 40%;
+
+    /* Priority bands, ordered so severity reads as heat. */
+    --priority-critical: 0 72% 48%;
+    --priority-high: 25 92% 46%;
+    --priority-medium: 41 92% 42%;
+    --priority-low: 199 62% 38%;
+
+    --radius: 0.65rem;
+  }
+
+  .dark {
+    --background: 222 45% 8%;
+    --foreground: 210 30% 96%;
+
+    --card: 222 41% 11%;
+    --card-foreground: 210 30% 96%;
+
+    --popover: 222 41% 11%;
+    --popover-foreground: 210 30% 96%;
+
+    --primary: 213 88% 62%;
+    --primary-foreground: 222 47% 10%;
+
+    --secondary: 217 30% 18%;
+    --secondary-foreground: 210 30% 94%;
+
+    --muted: 217 30% 17%;
+    --muted-foreground: 215 20% 66%;
+
+    --accent: 187 65% 45%;
+    --accent-foreground: 222 47% 10%;
+
+    --destructive: 0 68% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 52% 46%;
+    --success-foreground: 222 47% 10%;
+
+    --warning: 35 92% 58%;
+    --warning-foreground: 222 47% 10%;
+
+    --border: 217 28% 22%;
+    --input: 217 28% 22%;
+    --ring: 213 88% 62%;
+
+    --priority-critical: 0 78% 60%;
+    --priority-high: 25 92% 58%;
+    --priority-medium: 41 92% 55%;
+    --priority-low: 199 65% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Visible focus everywhere, for keyboard users. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+@layer components {
+  /* Skip link: hidden until focused, then pinned to the top-left. */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100]
+      focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground;
+  }
+
+  .surface {
+    @apply rounded-xl border border-border bg-card shadow-card;
+  }
+
+  /* A restrained grid backdrop for hero sections - suggests a street map
+     without the cost or noise of rendering a real one. */
+  .grid-backdrop {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.55) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.55) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
+
+/* Leaflet: align the default control chrome with the app's tokens. */
+.leaflet-container {
+  background: hsl(var(--muted));
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--card) / 0.9) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: hsl(var(--primary)) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px -12px rgb(15 23 42 / 0.35);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+
+.leaflet-bar a {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border-color: hsl(var(--border));
+}
+
+.leaflet-bar a:hover {
+  background: hsl(var(--muted));
+}
+
+/* Dark mode: OSM raster tiles are light, so damp them rather than ship a
+   second tile provider. */
+.dark .leaflet-tile-pane {
+  filter: brightness(0.72) saturate(0.75) contrast(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
