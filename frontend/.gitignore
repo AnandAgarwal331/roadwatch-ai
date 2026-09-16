@@ -8,6 +8,3 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 coverage/
-
-.vercel
-.env*

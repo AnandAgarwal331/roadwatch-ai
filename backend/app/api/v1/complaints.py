@@ -123,7 +123,7 @@ async def create_complaint(
 
     complaint = result.complaint
     return ComplaintCreateResponse(
-        complaint=to_detail(complaint, precise=True),
+        complaint=to_detail(complaint),
         needs_manual_review=result.needs_manual_review,
         ai_message=result.ai_message,
         duplicate_candidates=[to_duplicate_candidate(item) for item in result.duplicate_candidates],
@@ -148,12 +148,11 @@ def list_complaints(
     near_lat: float | None = Query(None, ge=-90, le=90),
     near_lon: float | None = Query(None, ge=-180, le=180),
     radius_meters: int = Query(2000, ge=10, le=50_000),
-    user: User | None = Depends(get_optional_user),
+    _user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_session),
 ) -> PaginatedResponse[ComplaintSummary]:
     """The public feed. Rejected and duplicate reports are excluded."""
     visible = [s for s in (status_filter or list(ComplaintStatus)) if s not in _PUBLIC_HIDDEN]
-    is_staff = user is not None and user.role in (UserRole.ADMIN, UserRole.REPAIR_TEAM)
 
     filters = ComplaintFilters(
         status=visible,
@@ -165,9 +164,7 @@ def list_complaints(
     items, total = ComplaintRepository(db).list(
         filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
     )
-    return PaginatedResponse.build(
-        [to_summary(item, precise=is_staff) for item in items], total, page, page_size
-    )
+    return PaginatedResponse.build([to_summary(item) for item in items], total, page, page_size)
 
 
 @router.get(
@@ -188,10 +185,7 @@ def my_complaints(
     items, total = ComplaintRepository(db).list(
         filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
     )
-    # These are all the caller's own reports, so full precision is fine here.
-    return PaginatedResponse.build(
-        [to_summary(item, precise=True) for item in items], total, page, page_size
-    )
+    return PaginatedResponse.build([to_summary(item) for item in items], total, page, page_size)
 
 
 @router.get("/{complaint_id}", response_model=ComplaintDetail, summary="Report detail")
@@ -212,7 +206,7 @@ def get_complaint(
     if complaint.status in _PUBLIC_HIDDEN and not (is_owner or is_staff):
         raise NotFoundError("That report could not be found.")
 
-    return to_detail(complaint, include_reporter=is_owner or is_staff, precise=is_owner or is_staff)
+    return to_detail(complaint, include_reporter=is_owner or is_staff)
 
 
 @router.get(
@@ -258,7 +252,7 @@ async def reanalyze(
         raise ValidationError("This report is closed and cannot be re-analysed.")
 
     complaint = await ComplaintService(db).reassess(complaint, actor=user)
-    return to_detail(repository.get(complaint.id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint.id, full=True), include_reporter=True)
 
 
 def _next_step(complaint, needs_manual_review: bool) -> str:

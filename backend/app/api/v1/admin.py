@@ -78,8 +78,8 @@ def dashboard(db: Session = Depends(get_session)) -> DashboardResponse:
     kpis = analytics.kpis()
     return DashboardResponse(
         kpis=KpiResponse(**asdict(kpis)),
-        priority_queue=[to_summary(item, precise=True) for item in queue],
-        recent_reports=[to_summary(item, precise=True) for item in recent],
+        priority_queue=[to_summary(item) for item in queue],
+        recent_reports=[to_summary(item) for item in recent],
         status_distribution=analytics.status_distribution(),
         priority_distribution=analytics.priority_distribution(),
     )
@@ -165,9 +165,7 @@ def list_reports(
     items, total = ComplaintRepository(db).list(
         filters, page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir
     )
-    return PaginatedResponse.build(
-        [to_summary(item, precise=True) for item in items], total, page, page_size
-    )
+    return PaginatedResponse.build([to_summary(item) for item in items], total, page, page_size)
 
 
 @router.get("/reports/{complaint_id}", response_model=ComplaintDetail, summary="Report detail")
@@ -175,7 +173,7 @@ def get_report(complaint_id: uuid.UUID, db: Session = Depends(get_session)) -> C
     complaint = ComplaintRepository(db).get(complaint_id, full=True)
     if complaint is None:
         raise NotFoundError("That report could not be found.")
-    return to_detail(complaint, include_reporter=True, precise=True)
+    return to_detail(complaint, include_reporter=True)
 
 
 @router.patch("/reports/{complaint_id}/status", response_model=ComplaintDetail, summary="Change status")
@@ -191,7 +189,7 @@ def change_status(
         raise NotFoundError("That report could not be found.")
 
     ComplaintService(db).change_status(complaint, payload.status, admin, payload.note)
-    return to_detail(repository.get(complaint_id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint_id, full=True), include_reporter=True)
 
 
 @router.post("/reports/{complaint_id}/reject", response_model=ComplaintDetail, summary="Reject a report")
@@ -207,7 +205,7 @@ def reject_report(
         raise NotFoundError("That report could not be found.")
 
     ComplaintService(db).reject(complaint, payload.reason, admin)
-    return to_detail(repository.get(complaint_id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint_id, full=True), include_reporter=True)
 
 
 @router.patch(
@@ -227,7 +225,7 @@ def override_priority(
         raise NotFoundError("That report could not be found.")
 
     ComplaintService(db).override_priority(complaint, payload.priority_score, admin, payload.note)
-    return to_detail(repository.get(complaint_id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint_id, full=True), include_reporter=True)
 
 
 @router.post(
@@ -272,7 +270,7 @@ def verify_repair(
         raise ConflictError("There is no completed repair to verify for this report.")
 
     ComplaintService(db).verify_repair(assignment, admin, payload.note)
-    return to_detail(repository.get(complaint_id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint_id, full=True), include_reporter=True)
 
 
 @router.post(
@@ -291,7 +289,7 @@ async def reassess(
         raise NotFoundError("That report could not be found.")
 
     await ComplaintService(db).reassess(complaint, actor=admin)
-    return to_detail(repository.get(complaint_id, full=True), include_reporter=True, precise=True)
+    return to_detail(repository.get(complaint_id, full=True), include_reporter=True)
 
 
 # -- duplicates ----------------------------------------------------------

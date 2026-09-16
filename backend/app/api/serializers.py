@@ -39,21 +39,7 @@ def thumbnail_url(complaint: Complaint) -> str | None:
     return complaint.images[0].url if complaint.images else None
 
 
-#: Public/anonymous viewers get coordinates rounded to ~100m. That is enough to
-#: place a pin on the right street without pinpointing the exact spot a
-#: reporter was standing - which, for a report filed outside someone's home,
-#: would otherwise reveal their address to anyone with no login at all.
-_PUBLIC_COORD_PRECISION = 3
-
-
-def _public_coords(latitude: float, longitude: float, *, precise: bool) -> tuple[float, float]:
-    if precise:
-        return latitude, longitude
-    return round(latitude, _PUBLIC_COORD_PRECISION), round(longitude, _PUBLIC_COORD_PRECISION)
-
-
-def to_summary(complaint: Complaint, *, precise: bool = False) -> ComplaintSummary:
-    latitude, longitude = _public_coords(complaint.latitude, complaint.longitude, precise=precise)
+def to_summary(complaint: Complaint) -> ComplaintSummary:
     return ComplaintSummary(
         id=complaint.id,
         complaint_number=complaint.complaint_number,
@@ -63,8 +49,8 @@ def to_summary(complaint: Complaint, *, precise: bool = False) -> ComplaintSumma
         priority_level=complaint.priority_level,
         severity_score=complaint.severity_score,
         report_count=complaint.report_count,
-        latitude=latitude,
-        longitude=longitude,
+        latitude=complaint.latitude,
+        longitude=complaint.longitude,
         road_name=complaint.road_name,
         description=complaint.description,
         thumbnail_url=thumbnail_url(complaint),
@@ -73,13 +59,12 @@ def to_summary(complaint: Complaint, *, precise: bool = False) -> ComplaintSumma
     )
 
 
-def to_map_issue(complaint: Complaint, *, precise: bool = False) -> MapIssue:
-    latitude, longitude = _public_coords(complaint.latitude, complaint.longitude, precise=precise)
+def to_map_issue(complaint: Complaint) -> MapIssue:
     return MapIssue(
         id=complaint.id,
         complaint_number=complaint.complaint_number,
-        latitude=latitude,
-        longitude=longitude,
+        latitude=complaint.latitude,
+        longitude=complaint.longitude,
         damage_type=complaint.damage_type,
         status=complaint.status,
         priority_level=complaint.priority_level,
@@ -150,39 +135,21 @@ def to_priority_response(complaint: Complaint) -> PriorityAssessmentResponse | N
     )
 
 
-def to_detail(
-    complaint: Complaint, *, include_reporter: bool = False, precise: bool = False
-) -> ComplaintDetail:
+def to_detail(complaint: Complaint, *, include_reporter: bool = False) -> ComplaintDetail:
     analysis = complaint.latest_analysis
     traffic = complaint.traffic_snapshots[-1] if complaint.traffic_snapshots else None
     assignment = complaint.active_assignment
 
-    location = None
-    if complaint.location:
-        location = LocationResponse.model_validate(complaint.location)
-        if not precise:
-            latitude, longitude = _public_coords(
-                location.latitude, location.longitude, precise=False
-            )
-            # The exact GPS accuracy and free-text address are dropped too - an
-            # address string pins a spot more precisely than rounded coordinates do.
-            location = location.model_copy(
-                update={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "accuracy_meters": None,
-                    "address": None,
-                }
-            )
-
     return ComplaintDetail(
-        **to_summary(complaint, precise=precise).model_dump(),
+        **to_summary(complaint).model_dump(),
         reported_damage_type=complaint.reported_damage_type,
         resolved_at=complaint.resolved_at,
         rejection_reason=complaint.rejection_reason,
         manual_priority_override=complaint.manual_priority_override,
         duplicate_of_id=complaint.duplicate_of_id,
-        location=location,
+        location=(
+            LocationResponse.model_validate(complaint.location) if complaint.location else None
+        ),
         images=[ComplaintImageResponse.model_validate(image) for image in complaint.images],
         latest_analysis=(AIAnalysisResponse.model_validate(analysis) if analysis else None),
         priority=to_priority_response(complaint),
@@ -253,8 +220,7 @@ def to_task(assignment: RepairAssignment) -> TaskResponse:
         verified_at=assignment.verified_at,
         notes=assignment.notes,
         created_at=assignment.created_at,
-        # Crews need the exact spot to actually find and fix the road.
-        complaint=to_summary(assignment.complaint, precise=True),
+        complaint=to_summary(assignment.complaint),
         evidence=[RepairEvidenceResponse.model_validate(item) for item in assignment.evidence],
         is_overdue=overdue,
     )
