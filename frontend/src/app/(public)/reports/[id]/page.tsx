@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { DamageTypeBadge, PriorityBadge, StatusBadge } from "@/components/complaints/badges";
 import { ContextPanel } from "@/components/complaints/context-panel";
 import { DetectionOverlay } from "@/components/complaints/detection-overlay";
+import { EvidenceImage } from "@/components/complaints/evidence-image";
 import { PriorityBreakdown } from "@/components/complaints/priority-breakdown";
 import { StatusTimeline } from "@/components/complaints/status-timeline";
 import { Alert } from "@/components/ui/alert";
@@ -189,8 +190,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
                 {evidence.map((image) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <EvidenceImage
                     key={image.id}
                     src={image.url}
                     alt="Photo submitted by the repair crew showing the completed work"

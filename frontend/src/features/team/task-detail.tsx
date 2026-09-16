@@ -40,6 +40,12 @@ export function TaskDetail({ assignmentId }: { assignmentId: string }) {
     queryFn: () => api.get<Task>(`/team/tasks/${assignmentId}`),
   });
 
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const thumbnailUrl = query.data?.complaint.thumbnail_url;
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [thumbnailUrl]);
+
   if (query.isPending) {
     return (
       <>
@@ -106,7 +112,7 @@ export function TaskDetail({ assignmentId }: { assignmentId: string }) {
               <CardTitle>What was reported</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {complaint.thumbnail_url ? (
+              {complaint.thumbnail_url && !imageFailed ? (
                 // User-submitted photo of unknown dimensions; a plain img keeps
                 // the aspect handling simple.
                 // eslint-disable-next-line @next/next/no-img-element
@@ -114,7 +120,12 @@ export function TaskDetail({ assignmentId }: { assignmentId: string }) {
                   src={complaint.thumbnail_url}
                   alt={`Photo submitted with report ${complaint.complaint_number}`}
                   className="w-full rounded-lg border border-border object-cover"
+                  onError={() => setImageFailed(true)}
                 />
+              ) : complaint.thumbnail_url ? (
+                <div className="flex h-40 w-full items-center justify-center rounded-lg border border-border bg-muted text-sm text-muted-foreground">
+                  Photo could not be loaded
+                </div>
               ) : null}
 
               <p className="text-sm leading-relaxed">
