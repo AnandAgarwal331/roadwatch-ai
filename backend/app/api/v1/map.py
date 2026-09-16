@@ -67,4 +67,7 @@ def map_issues(
         exclude_closed=exclude_closed,
         bbox=bbox,
     )
-    return [to_map_issue(item) for item in ComplaintRepository(db).map_points(filters, limit=limit)]
+    return [
+        to_map_issue(item, precise=is_staff)
+        for item in ComplaintRepository(db).map_points(filters, limit=limit)
+    ]
