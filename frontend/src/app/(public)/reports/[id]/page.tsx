@@ -108,6 +108,8 @@ export default async function ReportDetailPage({ params }: PageProps) {
                     complaint.road_name ?? "an unnamed road"
                   }`}
                   detections={analysis?.detections ?? []}
+                  width={photo.width}
+                  height={photo.height}
                 />
               ) : (
                 <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">

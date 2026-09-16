@@ -147,6 +147,8 @@ export function AnalysisResult({ result }: { result: ComplaintCreateResponse }) 
                 imageUrl={photo.url}
                 alt={`The ${DAMAGE_TYPE_LABELS[complaint.damage_type].toLowerCase()} you reported`}
                 detections={analysis?.detections ?? []}
+                width={photo.width}
+                height={photo.height}
               />
             ) : (
               <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">

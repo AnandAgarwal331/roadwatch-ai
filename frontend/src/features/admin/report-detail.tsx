@@ -147,6 +147,8 @@ export function ReportDetail({ complaintId }: { complaintId: string }) {
                   imageUrl={primaryImage.url}
                   alt={`Photo submitted with report ${complaint.complaint_number}`}
                   detections={complaint.latest_analysis?.detections ?? []}
+                  width={primaryImage.width}
+                  height={primaryImage.height}
                 />
               ) : null}
 
