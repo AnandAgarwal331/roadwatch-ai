@@ -1,5 +1,8 @@
+"use client";
+
 import { Layers, MapPin } from "lucide-react";
 import Link from "next/link";
+import * as React from "react";
 
 import { DamageTypeBadge, PriorityBadge, StatusBadge } from "@/components/complaints/badges";
 import { Card } from "@/components/ui/card";
@@ -16,6 +19,7 @@ interface ComplaintCardProps {
 
 export function ComplaintCard({ complaint, href, className }: ComplaintCardProps) {
   const target = href ?? `/reports/${complaint.id}`;
+  const [imageFailed, setImageFailed] = React.useState(false);
 
   return (
     <Card
@@ -26,7 +30,7 @@ export function ComplaintCard({ complaint, href, className }: ComplaintCardProps
     >
       <Link href={target} className="block focus:outline-none">
         <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-          {complaint.thumbnail_url ? (
+          {complaint.thumbnail_url && !imageFailed ? (
             // Uploaded photos are user content of unknown dimensions; a plain
             // img keeps the aspect handling simple and avoids a loader round-trip.
             // eslint-disable-next-line @next/next/no-img-element
@@ -37,10 +41,11 @@ export function ComplaintCard({ complaint, href, className }: ComplaintCardProps
               }`}
               loading="lazy"
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No photo provided
+              {imageFailed ? "Photo could not be loaded" : "No photo provided"}
             </div>
           )}
 
