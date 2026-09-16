@@ -35,6 +35,14 @@ export function ReportWizard() {
   });
   const [stepError, setStepError] = React.useState<string | null>(null);
 
+  // The preview URL must outlive the Photo step, since Review shows it too.
+  // Revoke only when the photo itself changes or the wizard unmounts.
+  React.useEffect(() => {
+    return () => {
+      if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+    };
+  }, [photo?.previewUrl]);
+
   const submission = useMutation<ComplaintCreateResponse, unknown, void>({
     mutationFn: async () => {
       if (!location) throw new Error("A location is required.");

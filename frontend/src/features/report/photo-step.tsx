@@ -38,13 +38,6 @@ export function PhotoStep({ value, onChange }: PhotoStepProps) {
   const fileInput = React.useRef<HTMLInputElement>(null);
   const cameraInput = React.useRef<HTMLInputElement>(null);
 
-  // Object URLs leak until revoked; tie the lifetime to the preview.
-  React.useEffect(() => {
-    return () => {
-      if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
-    };
-  }, [value?.previewUrl]);
-
   function accept(file: File | undefined) {
     if (!file) return;
 
