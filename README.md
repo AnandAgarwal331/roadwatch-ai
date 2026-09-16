@@ -112,6 +112,10 @@ The backend reads its settings from the environment (see
 | `TRAFFIC_PROVIDER` | `mock` | |
 | `PLACES_PROVIDER` | `seeded` | `overpass` for live OpenStreetMap data |
 | `STORAGE_PROVIDER` | `local` | `s3` for object storage |
+| `STORAGE_BUCKET` | (empty) | Bucket name, required when `STORAGE_PROVIDER=s3` |
+| `STORAGE_PUBLIC_BASE_URL` | `/media` | Public URL prefix for uploads; set to the bucket's public URL when `STORAGE_PROVIDER=s3` |
+| `STORAGE_S3_ENDPOINT_URL` | (empty) | S3-compatible endpoint for non-AWS providers (e.g. Cloudflare R2's `https://<account_id>.r2.cloudflarestorage.com`); blank talks to AWS S3 directly |
+| `STORAGE_S3_REGION` | `auto` | `auto` for R2; a real region (e.g. `us-east-1`) for AWS S3 |
 | `PRIORITY_WEIGHT_*` | 4.0 / 2.5 / 2.0 / 1.5 | Severity, traffic, location, history |
 | `PRIORITY_THRESHOLD_*` | 40 / 70 / 85 | Medium, high, critical bands |
 

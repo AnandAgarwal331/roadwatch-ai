@@ -18,7 +18,12 @@ def get_storage_provider() -> StorageProvider:
     if provider == "s3":
         from app.providers.storage.s3 import S3StorageProvider  # noqa: PLC0415 - optional path
 
-        return S3StorageProvider(settings.STORAGE_BUCKET, settings.STORAGE_PUBLIC_BASE_URL)
+        return S3StorageProvider(
+            settings.STORAGE_BUCKET,
+            settings.STORAGE_PUBLIC_BASE_URL,
+            region=settings.STORAGE_S3_REGION or None,
+            endpoint_url=settings.STORAGE_S3_ENDPOINT_URL or None,
+        )
     if provider != "local":
         logger.warning("Unknown STORAGE_PROVIDER %r; using local storage", provider)
     return LocalStorageProvider(settings.STORAGE_LOCAL_DIR, settings.STORAGE_PUBLIC_BASE_URL)

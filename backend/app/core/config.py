@@ -48,8 +48,17 @@ class Settings(BaseSettings):
     # -- Storage --------------------------------------------------------
     STORAGE_PROVIDER: str = "local"  # local | s3
     STORAGE_LOCAL_DIR: str = str(BACKEND_ROOT / "uploads")
+    #: Where uploaded files are reachable from: the local /media mount, or the
+    #: bucket's public URL (an R2 public bucket URL, S3 custom domain, etc).
     STORAGE_PUBLIC_BASE_URL: str = "/media"
     STORAGE_BUCKET: str = ""
+    #: S3-compatible endpoint for non-AWS providers, e.g. R2's
+    #: https://<account_id>.r2.cloudflarestorage.com. Left blank, boto3 talks to
+    #: AWS S3 directly.
+    STORAGE_S3_ENDPOINT_URL: str = ""
+    #: R2 has no regions and expects the literal string "auto"; AWS needs a real
+    #: region name (e.g. us-east-1).
+    STORAGE_S3_REGION: str = "auto"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/webp"
     IMAGE_MAX_DIMENSION: int = 1600
