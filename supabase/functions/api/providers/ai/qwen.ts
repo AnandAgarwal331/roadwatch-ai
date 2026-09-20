@@ -12,6 +12,7 @@
 // are approximate. Measure it on real photos before trusting it.
 
 import type { AIAnalysisProvider, AnalysisResult } from "./base.ts";
+import { readImageSize } from "../../_shared/image_size.ts";
 import { parseQwenReply } from "./qwen_parse.ts";
 
 const PROMPT = `You are a road-infrastructure inspector. Look at the photo and report visible road damage.
@@ -105,7 +106,7 @@ export class QwenAIProvider implements AIAnalysisProvider {
       return this.failure("The AI service returned an unreadable response.");
     }
 
-    const parsed = parseQwenReply(text);
+    const parsed = parseQwenReply(text, readImageSize(imageBytes));
     if (!parsed) return this.failure("The AI service returned an unreadable response.");
 
     return {

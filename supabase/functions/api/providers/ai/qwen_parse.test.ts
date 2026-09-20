@@ -68,3 +68,40 @@ Deno.test("ignores a <think> block, even one containing braces", () => {
   )!;
   assertEquals(r.damageType, "POTHOLE");
 });
+
+Deno.test("0-1000 boxes are normalised by the longer side of the image (measured on a real photo)", () => {
+  // Portrait 323x485 photo; Qwen returned [214,207,401,783] for a hole that
+  // truly spans x 0.33-0.62, y 0.21-0.77.
+  const portrait = parseQwenReply('{"damage_type":"POTHOLE","confidence":0.9,"detections":[{"box":[214,207,401,783]}]}', { width: 323, height: 485 })!;
+  assertAlmostEquals(portrait.detections[0].bboxX, 0.32, 0.01);
+  assertAlmostEquals(portrait.detections[0].bboxY, 0.207, 0.01);
+  assertAlmostEquals(portrait.detections[0].bboxX + portrait.detections[0].bboxWidth, 0.60, 0.01);
+  assertAlmostEquals(portrait.detections[0].bboxY + portrait.detections[0].bboxHeight, 0.783, 0.01);
+
+  // Landscape 485x323 photo; vertical values scale by 485/323.
+  const landscape = parseQwenReply('{"damage_type":"POTHOLE","confidence":0.9,"detections":[{"box":[170,205,790,385]}]}', { width: 485, height: 323 })!;
+  assertAlmostEquals(landscape.detections[0].bboxY, 0.308, 0.01);
+  assertAlmostEquals(landscape.detections[0].bboxY + landscape.detections[0].bboxHeight, 0.578, 0.01);
+  assertAlmostEquals(landscape.detections[0].bboxX, 0.17, 0.01);
+});
+
+Deno.test("a square image is unaffected by the longer-side rule", () => {
+  const r = parseQwenReply('{"damage_type":"POTHOLE","confidence":0.9,"detections":[{"box":[100,200,600,700]}]}', { width: 800, height: 800 })!;
+  assertAlmostEquals(r.detections[0].bboxY, 0.2);
+  assertAlmostEquals(r.detections[0].bboxWidth, 0.5);
+});
+
+Deno.test("fractional 0-1 boxes are never rescaled, even with a known size", () => {
+  const r = parseQwenReply('{"damage_type":"POTHOLE","confidence":0.9,"detections":[{"box":[0.1,0.1,0.4,0.5]}]}', { width: 485, height: 323 })!;
+  assertAlmostEquals(r.detections[0].bboxHeight, 0.4);
+});
+
+Deno.test("a whole-frame box is dropped when a specific box exists, kept when it is the only one", () => {
+  const both = parseQwenReply('{"damage_type":"POTHOLE","confidence":0.9,"detections":[{"damage_type":"POTHOLE","box":[200,200,600,500]},{"damage_type":"CRACKED_ROAD","box":[0,0,1000,1000]}]}')!;
+  assertEquals(both.detections.length, 1);
+  assertEquals(both.detections[0].damageType, "POTHOLE");
+  assertAlmostEquals(both.damagedAreaRatio, 0.12);
+
+  const alone = parseQwenReply('{"damage_type":"CRACKED_ROAD","confidence":0.9,"detections":[{"box":[0,0,1000,1000]}]}')!;
+  assertEquals(alone.detections.length, 1);
+});

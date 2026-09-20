@@ -10,6 +10,7 @@
 
 import type { Detection } from "./base.ts";
 import type { DamageType } from "../../_shared/enums.ts";
+import type { ImageSize } from "../../_shared/image_size.ts";
 
 const VALID: DamageType[] = ["POTHOLE", "CRACKED_ROAD", "FLOODING", "DAMAGED_SIDEWALK", "BROKEN_STREETLIGHT", "OTHER"];
 const MAX_DETECTIONS = 10;
@@ -47,22 +48,39 @@ function extractJson(text: string): unknown {
   }
 }
 
-function toBox(raw: unknown): { x: number; y: number; w: number; h: number } | null {
+function toBox(raw: unknown, size: ImageSize | null): { x: number; y: number; w: number; h: number } | null {
   if (!Array.isArray(raw) || raw.length !== 4) return null;
   const nums = raw.map(Number);
   if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
 
   const largest = Math.max(...nums);
-  const scale = largest <= 1.0001 ? 1 : largest <= 1000 ? 1000 : null;
-  if (scale === null) return null;
+  if (largest > 1000) return null;
 
-  const [x1, y1, x2, y2] = nums.map((n) => Math.min(1, n / scale));
+  let [x1, y1, x2, y2] = nums;
+  if (largest <= 1.0001) {
+    // Already fractions of the width/height.
+  } else if (size) {
+    // Measured on a real photo: Qwen's 0-1000 grid is normalised by the
+    // image's LONGER side, not by each axis. On a 485x323 photo the raw
+    // vertical values had to be scaled by 485/323 to land on the pothole
+    // (overlap 0.19 -> 0.91 on a portrait copy). Without this the box
+    // drifts off the damage on any non-square photo.
+    const longer = Math.max(size.width, size.height);
+    x1 = (x1 / 1000) * (longer / size.width);
+    x2 = (x2 / 1000) * (longer / size.width);
+    y1 = (y1 / 1000) * (longer / size.height);
+    y2 = (y2 / 1000) * (longer / size.height);
+  } else {
+    [x1, y1, x2, y2] = [x1, y1, x2, y2].map((n) => n / 1000);
+  }
+
+  [x1, y1, x2, y2] = [x1, y1, x2, y2].map((n) => Math.min(1, n));
   if (x2 <= x1 || y2 <= y1) return null;
   return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }
 
 /** Returns null when the reply contains no usable JSON object at all. */
-export function parseQwenReply(text: string): ParsedReply | null {
+export function parseQwenReply(text: string, size: ImageSize | null = null): ParsedReply | null {
   const root = extractJson(text) as Record<string, unknown> | null;
   if (!root || typeof root !== "object") return null;
 
@@ -74,7 +92,7 @@ export function parseQwenReply(text: string): ParsedReply | null {
   for (const item of rawList.slice(0, MAX_DETECTIONS)) {
     if (!item || typeof item !== "object") continue;
     const entry = item as Record<string, unknown>;
-    const box = toBox(entry.box ?? entry.bbox);
+    const box = toBox(entry.box ?? entry.bbox, size);
     if (!box) continue;
     const type = toDamageType(entry.damage_type ?? root.damage_type);
     if (type === "UNKNOWN") continue;
@@ -86,6 +104,14 @@ export function parseQwenReply(text: string): ParsedReply | null {
       bboxWidth: box.w,
       bboxHeight: box.h,
     });
+  }
+
+  // A whole-frame box next to more specific ones adds nothing to the overlay
+  // and would inflate the damaged-area share (and so the severity score).
+  const specific = detections.filter((d) => d.bboxWidth * d.bboxHeight <= 0.9);
+  if (specific.length > 0 && specific.length < detections.length) {
+    detections.length = 0;
+    detections.push(...specific);
   }
 
   const confidence =
