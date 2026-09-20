@@ -19,7 +19,7 @@ score is shown and explained.
 | Surface | For | Routes |
 |---|---|---|
 | Public site | Anyone | Landing, city map, browse reports, report detail |
-| Citizen | Signed-in residents | Report a problem, my reports, profile |
+| Citizen | Signed-in residents | Report a problem, my reports (delete or re-analyze an open report of your own), profile |
 | Crew console | Repair teams | Today, all jobs, job detail with evidence upload |
 | Works department | Administrators | Dashboard, queue, report detail, duplicates, analytics, teams, audit, scoring settings |
 
@@ -80,7 +80,7 @@ npx supabase functions deploy api     # deploy the Edge Function
 cd frontend
 npm run typecheck
 npm run lint
-npm test               # 44 tests
+npm test               # 47 tests
 npm run build
 
 # Edge Function - type-check every file (no bundler step; Deno reads TS directly)

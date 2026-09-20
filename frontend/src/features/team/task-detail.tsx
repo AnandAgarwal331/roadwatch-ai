@@ -40,11 +40,16 @@ export function TaskDetail({ assignmentId }: { assignmentId: string }) {
     queryFn: () => api.get<Task>(`/team/tasks/${assignmentId}`),
   });
 
-  const [imageFailed, setImageFailed] = React.useState(false);
   const thumbnailUrl = query.data?.complaint.thumbnail_url;
-  React.useEffect(() => {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  // Resets when the photo itself changes, computed during render (not an
+  // effect) so it never lags a render behind - see the React docs' "Adjusting
+  // some state when a prop changes".
+  const [trackedUrl, setTrackedUrl] = React.useState(thumbnailUrl);
+  if (thumbnailUrl !== trackedUrl) {
+    setTrackedUrl(thumbnailUrl);
     setImageFailed(false);
-  }, [thumbnailUrl]);
+  }
 
   if (query.isPending) {
     return (

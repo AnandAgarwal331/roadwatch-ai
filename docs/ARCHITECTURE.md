@@ -65,8 +65,9 @@ The AI boundary is the one worth defending, same as before the migration:
 because it makes no decisions, it can be scaled separately, moved to a GPU
 host, or swapped for a different model without touching a single business
 rule. Severity, priority and duplicate detection all live in the Edge
-Function, where they're tested deterministically against real Python output
-captured before the port, without a model in the loop.
+Function, where they're deterministic and unit-tested (`deno task test` -
+see `supabase/functions/api/services/*.test.ts`), without a model in the
+loop.
 
 ## How a report flows
 
@@ -200,7 +201,12 @@ value later is an `ALTER TABLE`, not an `ALTER TYPE`):
 - `profiles` - citizen, admin or repair crew; crews carry a `team_id`. Extends
   `auth.users` (same UUID) instead of owning its own password - replaces the
   old `User` model now that Supabase Auth issues credentials.
-- `complaints` - the report, its status, its scores and its numbering.
+- `complaints` - the report, its status, its scores and its numbering. Soft
+  deletable (`deleted_at`) by the reporter via `delete_own_complaint`, but
+  only before the report is closed (assigned, in progress, resolved,
+  rejected or marked a duplicate) - see that migration's own comment.
+  Deleted rows stay visible to admins by direct id, invisible everywhere
+  else (every listing, the map, duplicate/history matching).
 - `complaint_images` - the stored photo and its thumbnail, in Supabase Storage.
 - `ai_analyses` / `ai_detections` - detections and the model that produced them.
 - `priority_assessments` - the score, the factor breakdown and the engine version.
