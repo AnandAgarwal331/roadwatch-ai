@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ProfilePage() {
-  // The middleware already keeps signed-out visitors away; this is the real
+  // The proxy already keeps signed-out visitors away; this is the real
   // check, and it also gives the form its initial values.
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=%2Fprofile");

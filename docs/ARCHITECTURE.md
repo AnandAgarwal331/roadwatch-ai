@@ -149,14 +149,16 @@ The browser never calls the Edge Function directly. It calls `/api/proxy/*`
 on its own origin; that route reads the cookie server-side and attaches the
 `Authorization` header (plus the publishable key as `apikey`, which
 Supabase's own gateway requires in front of the function). A second,
-non-sensitive cookie carries only the role so middleware can route without a
-round-trip.
+non-sensitive cookie carries only the role so `proxy.ts` (Next.js 16 renamed
+the "middleware" file convention to "proxy" - unrelated to the `/api/proxy/*`
+route above, which predates the rename and does something entirely
+different) can route without a round-trip.
 
 Authorisation is layered, and each layer is honest about its job:
 
 | Layer | What it is for | What it is *not* |
 |---|---|---|
-| `middleware.ts` | Sends signed-out visitors to login, and each role to its own home | Not a security boundary; the role cookie is a routing hint |
+| `proxy.ts` | Sends signed-out visitors to login, and each role to its own home | Not a security boundary; the role cookie is a routing hint |
 | Layout `getCurrentUser()` | Verifies the session against `/auth/me` before rendering a console | Still not the last word |
 | Row Level Security + `_shared/auth.ts` | The real check, re-run on every single request - the role is re-read from `profiles` every time, never trusted from the JWT | - |
 

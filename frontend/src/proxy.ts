@@ -3,9 +3,9 @@
  *
  * This is a **navigation** guard, not an authorisation boundary: it keeps
  * signed-out visitors off private pages and sends people to the right home
- * screen for their role. Real authorisation happens in FastAPI on every
- * request, so a forged role cookie buys nothing but a page that fails to load
- * its data.
+ * screen for their role. Real authorisation happens in Row Level Security
+ * and the Edge Function on every request, so a forged role cookie buys
+ * nothing but a page that fails to load its data.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -23,7 +23,7 @@ function homeFor(role: string | undefined): string {
   return "/";
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const role = request.cookies.get(ROLE_COOKIE)?.value;

@@ -5,9 +5,12 @@
  * exposed to client JavaScript: the browser talks to `/api/proxy/*`, and only
  * this module reads the cookie to attach the Authorization header.
  *
- * A second, non-sensitive cookie carries just the role, so middleware can route
- * without a round-trip. It is a *hint* for navigation only - the backend
- * re-checks the real role on every request, so tampering with it gains nothing.
+ * A second, non-sensitive cookie carries just the role, so `src/proxy.ts` (not
+ * to be confused with the `/api/proxy/*` route above - two unrelated things
+ * that happen to share a name since Next.js renamed "middleware" to "proxy")
+ * can route without a round-trip. It is a *hint* for navigation only - the
+ * backend re-checks the real role on every request, so tampering with it
+ * gains nothing.
  *
  * The backend is a Supabase Edge Function now, not FastAPI - it sits behind
  * Supabase's own gateway, which requires a valid `apikey` header (or a valid

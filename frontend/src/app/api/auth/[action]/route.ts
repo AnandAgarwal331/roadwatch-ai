@@ -166,7 +166,7 @@ export async function POST(
   response.cookies.set(SESSION_COOKIE, accessToken, sessionCookieOptions(expiresIn));
   response.cookies.set(ROLE_COOKIE, user.role, {
     ...sessionCookieOptions(expiresIn),
-    // Readable by middleware for routing. Never trusted for authorisation.
+    // Readable by the proxy for routing. Never trusted for authorisation.
     httpOnly: false,
   });
 
