@@ -34,7 +34,9 @@ function toConfidence(value: unknown): number | null {
 }
 
 function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```(?:json)?/gi, "");
+  // Reasoning models may emit <think>...</think> first; its contents can
+  // contain braces that would otherwise be mistaken for the answer.
+  const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/gi, "");
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end <= start) return null;

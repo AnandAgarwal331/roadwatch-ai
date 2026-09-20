@@ -51,6 +51,7 @@ export class QwenAIProvider implements AIAnalysisProvider {
     private apiKey: string,
     private model: string,
     private timeoutMs = 45_000,
+    private extraParams: Record<string, unknown> = {},
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
@@ -64,7 +65,9 @@ export class QwenAIProvider implements AIAnalysisProvider {
       response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
+        // Extra params go first so they can never override the fields below.
         body: JSON.stringify({
+          ...this.extraParams,
           model: this.model,
           temperature: 0,
           max_tokens: 900,

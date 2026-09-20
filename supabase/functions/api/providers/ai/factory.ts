@@ -14,7 +14,7 @@ export function getAIProvider(): AIAnalysisProvider {
   if (provider === "http") {
     cached = new HttpAIProvider(settings.AI_SERVICE_URL, 20_000);
   } else if (provider === "qwen") {
-    cached = new QwenAIProvider(settings.AI_BASE_URL, settings.AI_API_KEY, settings.AI_MODEL);
+    cached = new QwenAIProvider(settings.AI_BASE_URL, settings.AI_API_KEY, settings.AI_MODEL, 45_000, settings.AI_EXTRA_PARAMS);
   } else {
     cached = new MockAIProvider();
   }

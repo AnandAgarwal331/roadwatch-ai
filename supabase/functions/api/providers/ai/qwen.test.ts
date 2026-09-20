@@ -86,3 +86,24 @@ Deno.test("the API key never appears in an error message", async () => {
   const result = await withFetch(() => Promise.resolve(new Response("bad key super-secret-123", { status: 401 })), () => provider.analyze(IMAGE, "image/jpeg"));
   assertEquals((result.errorMessage ?? "").includes("super-secret-123"), false);
 });
+
+Deno.test("extra params are sent, but can never override model or messages", async () => {
+  let body: Record<string, any> = {};
+  const provider = new QwenAIProvider("https://example.test/v1", "k", "real-model", 45_000, {
+    reasoning_effort: "none",
+    response_format: { type: "json_object" },
+    model: "attacker-model",
+    messages: [],
+  });
+  await withFetch(
+    (_input, init) => {
+      body = JSON.parse(String(init?.body));
+      return Promise.resolve(reply('{"damage_type":"NONE","confidence":0,"detections":[]}'));
+    },
+    () => provider.analyze(IMAGE, "image/jpeg"),
+  );
+  assertEquals(body.reasoning_effort, "none");
+  assertEquals(body.response_format, { type: "json_object" });
+  assertEquals(body.model, "real-model");
+  assertEquals(body.messages.length, 2);
+});

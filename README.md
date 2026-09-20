@@ -112,7 +112,7 @@ every key and its default). The values that matter most:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `AI_PROVIDER` | `mock` | `http` for the inference service (`AI_SERVICE_URL`), or `qwen` for a Qwen-VL model through any OpenAI-compatible API (needs `AI_API_KEY`; `AI_MODEL` and `AI_BASE_URL` pick the model and host - defaults are Alibaba Cloud Model Studio) |
+| `AI_PROVIDER` | `mock` | `http` for the inference service (`AI_SERVICE_URL`), or `qwen` for a Qwen-VL model through any OpenAI-compatible API (needs `AI_API_KEY`; `AI_MODEL` and `AI_BASE_URL` pick the model and host - defaults are Alibaba Cloud Model Studio; `AI_EXTRA_PARAMS` is an optional JSON object of host-specific request fields. Groq: `AI_BASE_URL=https://api.groq.com/openai/v1`, `AI_MODEL=qwen/qwen3.8-27b`, `AI_EXTRA_PARAMS={"reasoning_effort":"none"}`) |
 | `TRAFFIC_PROVIDER` | `mock` | |
 | `PLACES_PROVIDER` | `seeded` | `overpass` for public OpenStreetMap data (unreliable - see the provider's own comment), `geoapify` for a real, paid-but-free-tier places API (needs `PLACES_API_KEY`) |
 | `WEATHER_ENABLED` | `false` | |

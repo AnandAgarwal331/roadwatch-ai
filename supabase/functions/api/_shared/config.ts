@@ -12,6 +12,18 @@ function envInt(name: string, fallback: number): number {
   return raw ? Number.parseInt(raw, 10) : fallback;
 }
 
+/** A JSON object from an env var; anything malformed or non-object becomes {}. */
+function envJsonObject(name: string): Record<string, unknown> {
+  const raw = Deno.env.get(name);
+  if (!raw) return {};
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
 function envBool(name: string, fallback: boolean): boolean {
   const raw = Deno.env.get(name);
   if (raw === undefined) return fallback;
@@ -52,6 +64,10 @@ export const settings = {
   AI_API_KEY: Deno.env.get("AI_API_KEY") ?? "",
   AI_MODEL: Deno.env.get("AI_MODEL") ?? "qwen-vl-max",
   AI_BASE_URL: Deno.env.get("AI_BASE_URL") ?? "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  // Extra request fields merged into every qwen-provider call, as a JSON
+  // object - for options only some hosts understand, e.g. Groq:
+  // {"reasoning_effort":"none","response_format":{"type":"json_object"}}
+  AI_EXTRA_PARAMS: envJsonObject("AI_EXTRA_PARAMS"),
   AI_SERVICE_URL: Deno.env.get("AI_SERVICE_URL") ?? "http://localhost:8001",
   AI_MIN_CONFIDENCE: envFloat("AI_MIN_CONFIDENCE", 0.45),
   TRAFFIC_PROVIDER: Deno.env.get("TRAFFIC_PROVIDER") ?? "mock",

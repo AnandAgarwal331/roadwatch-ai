@@ -61,3 +61,10 @@ Deno.test("text with no JSON at all returns null", () => {
   assertEquals(parseQwenReply("I cannot help with that."), null);
   assertEquals(parseQwenReply("{not json}"), null);
 });
+
+Deno.test("ignores a <think> block, even one containing braces", () => {
+  const r = parseQwenReply(
+    '<think>The user wants {"damage_type": "FLOODING"} maybe, but I see a hole.</think>\n{"damage_type":"POTHOLE","confidence":0.8,"detections":[]}',
+  )!;
+  assertEquals(r.damageType, "POTHOLE");
+});
