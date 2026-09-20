@@ -8,6 +8,14 @@
  * A second, non-sensitive cookie carries just the role, so middleware can route
  * without a round-trip. It is a *hint* for navigation only - the backend
  * re-checks the real role on every request, so tampering with it gains nothing.
+ *
+ * The backend is a Supabase Edge Function now, not FastAPI - it sits behind
+ * Supabase's own gateway, which requires a valid `apikey` header (or a valid
+ * JWT in `Authorization`) on every request before the function even runs, on
+ * top of whatever auth the function code itself does. The publishable key is
+ * not a secret (it is designed to be public - the equivalent of the old
+ * anon-reachable endpoints), so sending it unconditionally is safe even for
+ * a signed-out visitor browsing the public feed.
  */
 
 import "server-only";
@@ -19,8 +27,11 @@ import type { User, UserRole } from "@/types";
 export const SESSION_COOKIE = "rw_session";
 export const ROLE_COOKIE = "rw_role";
 
-export const BACKEND_URL =
-  process.env.BACKEND_INTERNAL_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+export const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+
+/** The Edge Function's own routes are mounted under /api/*, same as FastAPI's used to be. */
+export const BACKEND_URL = `${SUPABASE_URL}/functions/v1`;
 
 export interface SessionCookieOptions {
   httpOnly: boolean;
@@ -63,7 +74,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
   try {
     const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_PUBLISHABLE_KEY },
       // Session state must never be served from a cache.
       cache: "no-store",
     });
@@ -85,6 +96,7 @@ export async function serverFetch<T>(
     const response = await fetch(`${BACKEND_URL}${path}`, {
       ...init,
       headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },

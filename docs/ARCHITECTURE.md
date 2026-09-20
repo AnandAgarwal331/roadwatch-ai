@@ -20,31 +20,53 @@ boundaries sit where they do.
         |  - /api/proxy/* attaches the |
         |    session token server-side |
         +---------------+--------------+
-                        |  Authorization: Bearer ...
+                        |  Authorization: Bearer ... + apikey
                         v
-        +------------------------------+          +--------------------+
-        |  api  (FastAPI, port 8000)   |--------->|  ai  (port 8001)   |
-        |  - auth, complaints, admin   |  image   |  - detections only |
-        |  - severity, priority, dupes |<---------|                    |
-        +---------------+--------------+          +--------------------+
-                        |
-                        v
-                  PostgreSQL
+        +----------------------------------------------+
+        |  Supabase project                             |
+        |  +------------------------------------------+ |        +--------------------+
+        |  |  api  (Edge Function, Deno/Hono)          | |------->|  ai  (port 8001)   |
+        |  |  - routes/*.ts: auth, complaints, admin,  | | image  |  - detections only |
+        |  |    map, team, notifications, public       | |<-------|  optional, mocked  |
+        |  |  - services/*.ts: severity, priority,     | |        |  by default        |
+        |  |    duplicates, assessment orchestration   | |        +--------------------+
+        |  +--------------------+-----------------------+ |
+        |                       |  RLS-scoped (publishable    |
+        |                       |  key + caller's JWT), or    |
+        |                       |  service-role for system-   |
+        |                       |  level reads/writes          |
+        |                       v                              |
+        |  Postgres  +  Row Level Security  +  security       |
+        |  definer RPCs (create_complaint, persist_assessment, |
+        |  check_rate_limit, ...)  +  Storage  +  Auth          |
+        +----------------------------------------------+
 ```
 
-Three services, split along the lines that actually change independently:
+Split along the lines that actually change independently:
 
 - **web** owns presentation and the session cookie. It holds no business rules.
-- **api** owns every rule, every score and every permission check. It is the
-  only service that touches the database.
+- **the Edge Function** owns every rule, every score and every permission
+  check made in code - the same responsibility FastAPI used to have, ported
+  route-for-route (`supabase/functions/api/routes/*.ts` mirrors the old
+  `app/api/v1/*.py` routers, `services/*.ts` mirrors `app/services/*.py`).
+- **Postgres itself, via Row Level Security**, is the actual authorization
+  boundary underneath the Edge Function - not a bypass connection. Ordinary
+  reads/writes run as the calling user through RLS policies; anything too
+  complex for a row-level policy (creating a complaint, the atomic
+  multi-table assessment write, admin status transitions) is a `security
+  definer` Postgres function instead, so the elevated privilege is scoped to
+  one auditable function rather than a whole connection.
 - **ai** owns inference and nothing else - no database, no auth, no judgement.
-  It answers "what do you see in this image" and stops there.
+  It answers "what do you see in this image" and stops there. It's optional:
+  the Edge Function defaults to a deterministic mock provider and only calls
+  out to this service when `AI_PROVIDER=http`.
 
-That last boundary is the one worth defending. Because the AI service makes no
-decisions, it can be scaled separately, moved to a GPU host, or swapped for a
-different model without touching a single business rule. Severity, priority and
-duplicate detection all live in `api`, where they can be tested deterministically
-without a model in the loop.
+The AI boundary is the one worth defending, same as before the migration:
+because it makes no decisions, it can be scaled separately, moved to a GPU
+host, or swapped for a different model without touching a single business
+rule. Severity, priority and duplicate detection all live in the Edge
+Function, where they're tested deterministically against real Python output
+captured before the port, without a model in the loop.
 
 ## How a report flows
 
@@ -115,61 +137,84 @@ correctness requirement, not a legal decoration.
 
 ## Authentication and authorisation
 
-The access token is a JWT issued by `api`. It is stored in an **httpOnly**,
-`SameSite=Lax` cookie by the Next.js route handler and is never exposed to
-client JavaScript - which is exactly what `localStorage` would fail to do.
+The access token is a JWT issued by **Supabase Auth**, not by application
+code - login/register/logout call GoTrue (Supabase Auth's REST API) directly
+from the Next.js route handler rather than through the Edge Function, since
+they *are* what Supabase Auth already is. The token is stored in an
+**httpOnly**, `SameSite=Lax` cookie and is never exposed to client
+JavaScript - which is exactly what `localStorage` would fail to do.
 
-The browser never calls `api` directly. It calls `/api/proxy/*` on its own
-origin; that route reads the cookie server-side and attaches the
-`Authorization` header. A second, non-sensitive cookie carries only the role so
-middleware can route without a round-trip.
+The browser never calls the Edge Function directly. It calls `/api/proxy/*`
+on its own origin; that route reads the cookie server-side and attaches the
+`Authorization` header (plus the publishable key as `apikey`, which
+Supabase's own gateway requires in front of the function). A second,
+non-sensitive cookie carries only the role so middleware can route without a
+round-trip.
 
 Authorisation is layered, and each layer is honest about its job:
 
 | Layer | What it is for | What it is *not* |
 |---|---|---|
 | `middleware.ts` | Sends signed-out visitors to login, and each role to its own home | Not a security boundary; the role cookie is a routing hint |
-| Layout `getCurrentUser()` | Verifies the session against the API before rendering a console | Still not the last word |
-| FastAPI dependencies | The real check, re-run on every single request | - |
+| Layout `getCurrentUser()` | Verifies the session against `/auth/me` before rendering a console | Still not the last word |
+| Row Level Security + `_shared/auth.ts` | The real check, re-run on every single request - the role is re-read from `profiles` every time, never trusted from the JWT | - |
 
-Forging the role cookie gets you a page that fails to load its data. The admin
-router applies `require_admin` as a router-level dependency rather than a
-per-endpoint decorator, so a new endpoint cannot be added unprotected by
-accident. Crews read their team from their own user record, never from a request
-parameter, so one crew cannot reach another's jobs by guessing an id.
+Forging the role cookie gets you a page that fails to load its data. Every
+admin route in `routes/admin.ts` calls `requireAdmin(req)` as its first line
+(Hono has no router-level dependency injection the way FastAPI did, so this
+is the closest equivalent - still enforced on every handler, just written
+explicitly rather than declared once). Crews read their team from their own
+profile row, never from a request parameter, so one crew cannot reach
+another's jobs by guessing an id.
 
-Throughout, "not found" and "not yours" return the same response, so ids cannot
-be probed for existence.
+Throughout, "not found" and "not yours" return the same response, so ids
+cannot be probed for existence.
 
 ## Providers
 
 Every external dependency sits behind a small interface with a factory and at
-least two implementations - usually a real one and a deterministic mock:
+least two implementations - usually a real one and a deterministic mock, the
+same pattern before and after the migration:
 
 | Provider | Options |
 |---|---|
-| AI | `mock`, `http` (the bundled inference service) |
+| AI | `mock`, `http` (the optional standalone inference service) |
 | Traffic | `mock`, `http` |
 | Places | `seeded`, `overpass` (OpenStreetMap) |
-| Storage | `local`, `s3` |
+| Storage | Supabase Storage only (`complaint-photos` public bucket, `repair-evidence` private bucket) |
 | Weather | `mock` (off by default) |
 
-This is what lets the whole test suite run with no network and no model, and
-what lets a deployment start on mocks and adopt real sources one at a time.
+This is what lets a deployment start on mocks and adopt real sources one at a
+time. The mock traffic and weather providers are deterministic via SHA-256
+hashing and were verified bit-for-bit identical to the original Python
+output during the migration; the mock AI provider intentionally is not (it's
+an explicitly-labelled "not a trained model" dev stub, so only the
+deterministic-per-photo property matters).
 
 ## Data model
 
-- `User` - citizen, admin or repair crew; crews carry a `team_id`.
-- `Complaint` - the report, its status, its scores and its numbering.
-- `ComplaintImage` - the stored photo and its thumbnail.
-- `AIAnalysis` - detections and the model that produced them.
-- `PriorityAssessment` - the score, the factor breakdown and the engine version.
-- `RepairTeam` / `RepairAssignment` / `RepairEvidence` - the repair side.
-- `PotentialDuplicate` - a suggested link awaiting a human decision.
-- `StatusHistory` / `AuditLog` / `Notification` - the record of what happened.
+Defined in `supabase/migrations/*_initial_schema.sql` (plain DDL, enums as
+`text` + `check` constraints rather than native Postgres enums, so adding a
+value later is an `ALTER TABLE`, not an `ALTER TYPE`):
+
+- `profiles` - citizen, admin or repair crew; crews carry a `team_id`. Extends
+  `auth.users` (same UUID) instead of owning its own password - replaces the
+  old `User` model now that Supabase Auth issues credentials.
+- `complaints` - the report, its status, its scores and its numbering.
+- `complaint_images` - the stored photo and its thumbnail, in Supabase Storage.
+- `ai_analyses` / `ai_detections` - detections and the model that produced them.
+- `priority_assessments` - the score, the factor breakdown and the engine version.
+- `repair_teams` / `repair_assignments` / `repair_evidence` - the repair side.
+- `potential_duplicates` - a suggested link awaiting a human decision.
+- `complaint_status_history` / `audit_logs` / `notifications` - the record of
+  what happened.
+- `rate_limit_counters` - the shared rate-limit state stateless Edge Functions
+  need in place of the old in-memory counter; touchable only through the
+  `check_rate_limit` RPC, never directly (RLS enabled, no policies).
 
 Geographic queries use a bounding-box prefilter followed by an exact haversine
-distance, which stays correct without requiring PostGIS.
+distance, which stays correct without requiring PostGIS - unchanged by the
+migration, since it was already plain application-level math.
 
 ## Frontend structure
 

@@ -23,29 +23,39 @@ score is shown and explained.
 | Crew console | Repair teams | Today, all jobs, job detail with evidence upload |
 | Works department | Administrators | Dashboard, queue, report detail, duplicates, analytics, teams, audit, scoring settings |
 
-Three services: a **Next.js** frontend, a **FastAPI** backend that owns every
-rule and score, and a small **inference service** that only turns images into
-detections. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how they fit
-and why the boundaries sit where they do.
+Two services: a **Next.js** frontend, and a **Supabase** project (Postgres +
+Auth + Storage + one Edge Function) that owns every rule, score and
+permission check. There is also a small, optional standalone **inference
+service** (`ai-service/`) that only turns images into detections - the
+backend defaults to a deterministic mock instead of calling it. See
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the pieces fit and why
+the boundaries sit where they do.
+
+> This project ran on a FastAPI + Neon + Render backend until it was migrated
+> onto Supabase (Postgres, Auth, Storage, Edge Functions). The FastAPI
+> backend (`backend/`) has been removed; everything it did now lives in
+> `supabase/migrations/` (schema, RLS policies, `security definer` RPCs) and
+> `supabase/functions/api/` (the Edge Function, ported route-for-route).
 
 ## Quick start
 
-Three terminals. Nothing needs to be containerised: the backend runs on a local
-SQLite file and every external dependency has a deterministic mock, so the whole
-system comes up with a Python venv and an `npm install`.
+Nothing needs to be containerised, and there is no local database to stand
+up - the backend is a hosted Supabase project.
 
-**Backend:**
+**Frontend:**
 
 ```bash
-cd backend
-python -m venv .venv && . .venv/Scripts/activate   # Linux/macOS: . .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-alembic upgrade head
-python -m app.seed                                  # synthetic demo data
-uvicorn app.main:app --reload --port 8000
+cd frontend
+cp .env.example .env.local   # NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE_KEY
+npm install
+npm run dev
 ```
 
-**Inference service** (optional - the backend defaults to `AI_PROVIDER=mock`):
+The web app comes up on <http://localhost:3000> and talks straight to the
+live Supabase project (Edge Function + Auth) named in `.env.local` - there is
+nothing else to start.
+
+**Inference service** (optional - the AI provider defaults to `AI_PROVIDER=mock`):
 
 ```bash
 cd ai-service
@@ -53,103 +63,95 @@ pip install -r requirements.txt      # add requirements-ml.txt for real YOLO
 uvicorn app.main:app --reload --port 8001
 ```
 
-**Frontend:**
+**Backend changes** (schema, RLS policies, RPC functions, or the Edge
+Function's own code) are made under `supabase/` and applied with the
+Supabase CLI:
 
 ```bash
-cd frontend
-cp .env.example .env.local
-npm install
-npm run dev
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push                  # apply pending migrations
+npx supabase functions deploy api     # deploy the Edge Function
 ```
-
-The web app comes up on <http://localhost:3000> and the API on
-<http://localhost:8000>, with interactive API docs at `/docs`.
-
-### Demo accounts
-
-After seeding, every account uses the password `Password123`:
-
-| Role | Email |
-|---|---|
-| Administrator | `admin@roadwatch.example` |
-| Citizen | `priya.sharma@example.com` |
-| Repair crew | `ravi.kumar@roadwatch.example` |
-
-All seeded data is synthetic. It is not government data.
 
 ## Development
 
 ```bash
-# Backend
-cd backend
-pytest                 # 174 tests
-ruff check .
-
 # Frontend
 cd frontend
 npm run typecheck
 npm run lint
 npm test               # 44 tests
 npm run build
+
+# Edge Function - type-check every file (no bundler step; Deno reads TS directly)
+deno check --config supabase/functions/deno.json $(find supabase/functions/api -name "*.ts")
 ```
 
-The backend test suite runs with no network and no model: every external
-dependency sits behind a provider interface with a deterministic mock. That is
-also what lets a deployment start on mocks and adopt real traffic, places and
-inference sources one at a time.
+Every external dependency the Edge Function calls (AI, traffic, places,
+weather) sits behind a small provider interface with a factory and a
+deterministic mock, the same pattern the old FastAPI backend used - so a
+deployment can start on mocks and adopt real sources one at a time.
 
 ## Configuration
 
-The backend reads its settings from the environment (see
-`backend/app/core/config.py`). The values that matter most:
+The frontend needs `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`). The publishable
+key is meant to be public; only the Next.js server reads either value today
+(the browser never calls Supabase directly - it goes through `/api/proxy/*`
+and `/api/auth/*`, which attach the session token server-side so it stays
+out of reach of page scripts).
+
+The Edge Function reads its settings from environment variables set via
+`supabase secrets set` (see `supabase/functions/api/_shared/config.ts` for
+every key and its default). The values that matter most:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | SQLite file | PostgreSQL is required in production; the app refuses to start on SQLite there |
-| `AUTH_SECRET` | dev-only value | Must be set outside development. Changing it signs everyone out |
-| `CORS_ORIGINS` | `localhost:3000` | Must list origins exactly; a wildcard is rejected because the API sends credentials |
-| `AI_PROVIDER` | `mock` | `http` to use the inference service |
+| `AI_PROVIDER` | `mock` | `http` to use the inference service (`AI_SERVICE_URL`) |
 | `TRAFFIC_PROVIDER` | `mock` | |
 | `PLACES_PROVIDER` | `seeded` | `overpass` for live OpenStreetMap data |
-| `STORAGE_PROVIDER` | `local` | `s3` for object storage |
-| `STORAGE_BUCKET` | (empty) | Bucket name, required when `STORAGE_PROVIDER=s3` |
-| `STORAGE_PUBLIC_BASE_URL` | `/media` | Public URL prefix for uploads; set to the bucket's public URL when `STORAGE_PROVIDER=s3` |
-| `STORAGE_S3_ENDPOINT_URL` | (empty) | S3-compatible endpoint for non-AWS providers (e.g. Cloudflare R2's `https://<account_id>.r2.cloudflarestorage.com`); blank talks to AWS S3 directly |
-| `STORAGE_S3_REGION` | `auto` | `auto` for R2; a real region (e.g. `us-east-1`) for AWS S3 |
+| `WEATHER_ENABLED` | `false` | |
 | `PRIORITY_WEIGHT_*` | 4.0 / 2.5 / 2.0 / 1.5 | Severity, traffic, location, history |
 | `PRIORITY_THRESHOLD_*` | 40 / 70 / 85 | Medium, high, critical bands |
+| `RATE_LIMIT_*` | see config.ts | Backed by a `rate_limit_counters` table, not in-memory |
 
-The live values are visible in the app at **Admin -> Scoring settings**. They
-are read-only there on purpose: changing a scoring rule is a deployment change,
-which keeps it from being altered silently mid-operation.
+A handful of `SUPABASE_`-prefixed variables (`SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, ...) are auto-injected by
+the platform into every Edge Function - `supabase secrets set` refuses to let
+a project override that prefix, so `_shared/supabase.ts` reads those
+directly rather than expecting them from config.
 
-The frontend needs only `BACKEND_INTERNAL_URL` - the address its server uses to
-reach the API. The browser never calls the API directly; it goes through
-`/api/proxy/*`, which attaches the session token server-side so the token stays
-out of reach of page scripts.
+The live scoring values are visible in the app at **Admin -> Scoring
+settings**. They are read-only there on purpose: changing a scoring rule is a
+deployment change, which keeps it from being altered silently mid-operation.
 
 ## Repository layout
 
 ```
-backend/      FastAPI: models, repositories, services, providers, migrations, tests
-ai-service/   Inference only: image in, detections out
+supabase/     Postgres schema + RLS policies + RPC functions (migrations/),
+              and the Edge Function itself (functions/api/) - routes,
+              services, providers, repositories, ported 1:1 from the old
+              FastAPI app's structure
+ai-service/   Inference only, optional: image in, detections out
 frontend/     Next.js App Router, React Query, Tailwind
 docs/         Architecture notes
 ```
 
 ## Deploying
 
-There is no container setup in the repository - the project is run directly, as
-above. For a real deployment the pieces that have to change are configuration
-rather than code:
+The frontend deploys as an ordinary Next.js app (this project deploys to
+Vercel). The backend is the Supabase project itself - `supabase db push` and
+`supabase functions deploy api` are the only "deploy" steps, there is no
+process manager or container to run:
 
-- Point `DATABASE_URL` at PostgreSQL. The app refuses to start on SQLite when
-  `ENVIRONMENT=production`, so this is enforced rather than merely advised.
-- Set `AUTH_SECRET` to a generated value and list the real origin in
-  `CORS_ORIGINS` (a wildcard is rejected, because the API sends credentials).
-- Run `alembic upgrade head` before starting the API; nothing creates tables at
-  runtime.
-- Switch `STORAGE_PROVIDER` to `s3` so uploads outlive a single host, and move
-  `AI_PROVIDER` to `http` if you are running the inference service.
-- Serve `backend` with `uvicorn` behind a process manager, and `frontend` with
-  `npm run build && npm run start`.
+- `supabase db push` applies every migration under `supabase/migrations/` in
+  order - schema, RLS policies, and RPC functions are all plain SQL files.
+- `supabase functions deploy api` bundles and deploys the Edge Function; it
+  needs `supabase/functions/api/deno.json` (a function-scoped import map -
+  the bundler does not pick up a shared one at `supabase/functions/deno.json`
+  without it).
+- Set the Edge Function's own secrets with `supabase secrets set` for
+  anything beyond the defaults in `_shared/config.ts` (a real AI/traffic
+  provider URL, CORS origins for a real frontend domain, and so on).
+- Point the frontend's `NEXT_PUBLIC_SUPABASE_URL` /
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` at the same project and deploy it.

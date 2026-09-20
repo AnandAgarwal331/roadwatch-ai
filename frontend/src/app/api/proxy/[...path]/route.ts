@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { BACKEND_URL, getSessionToken } from "@/lib/session";
+import { BACKEND_URL, getSessionToken, SUPABASE_PUBLISHABLE_KEY } from "@/lib/session";
 
 /** Hop-by-hop and identity headers that must not be relayed upstream. */
 const STRIPPED_REQUEST_HEADERS = new Set([
@@ -44,6 +44,11 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
       headers.set(key, value);
     }
   });
+
+  // Required by Supabase's own gateway in front of the Edge Function, on top
+  // of whatever auth the function code does - it is not a secret (see
+  // lib/session.ts), so it goes on every request, signed in or not.
+  headers.set("apikey", SUPABASE_PUBLISHABLE_KEY);
 
   const token = await getSessionToken();
   if (token) {
