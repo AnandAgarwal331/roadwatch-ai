@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DamageTypeBadge, PriorityBadge, StatusBadge } from "@/components/complaints/badges";
+import { BeforeAfterSlider } from "@/components/complaints/before-after-slider";
 import { ContextPanel } from "@/components/complaints/context-panel";
 import { DetectionOverlay } from "@/components/complaints/detection-overlay";
 import { EvidenceImage } from "@/components/complaints/evidence-image";
@@ -203,15 +204,33 @@ export default async function ReportDetailPage({ params }: PageProps) {
               <CardHeader>
                 <CardTitle>Repair evidence</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                {evidence.map((image) => (
-                  <EvidenceImage
-                    key={image.id}
-                    src={image.url}
-                    alt="Photo submitted by the repair crew showing the completed work"
-                    className="rounded-lg border border-border object-cover"
-                  />
-                ))}
+              <CardContent className="space-y-4">
+                {photo ? (
+                  <div>
+                    <BeforeAfterSlider
+                      beforeSrc={photo.url}
+                      beforeAlt={`${DAMAGE_TYPE_LABELS[complaint.damage_type]} as originally reported`}
+                      afterSrc={evidence[0].url}
+                      afterAlt="Photo submitted by the repair crew showing the completed work"
+                    />
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      Drag to compare the original report with the completed repair
+                    </p>
+                  </div>
+                ) : null}
+
+                {evidence.length > (photo ? 1 : 0) ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {evidence.slice(photo ? 1 : 0).map((image) => (
+                      <EvidenceImage
+                        key={image.id}
+                        src={image.url}
+                        alt="Photo submitted by the repair crew showing the completed work"
+                        className="rounded-lg border border-border object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

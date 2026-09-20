@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Filter, X } from "lucide-react";
+import { Filter, Flame, MapPin, X } from "lucide-react";
 import * as React from "react";
 
 import { IssueMapView } from "@/components/map/map-view";
@@ -58,6 +58,7 @@ export function CityMap({ admin = false }: CityMapProps) {
   const [status, setStatus] = React.useState(ANY);
   const [days, setDays] = React.useState(ANY);
   const [openOnly, setOpenOnly] = React.useState(false);
+  const [mode, setMode] = React.useState<"markers" | "heat">("markers");
 
   const createdFrom = React.useMemo(() => {
     if (days === ANY) return undefined;
@@ -190,12 +191,36 @@ export function CityMap({ admin = false }: CityMapProps) {
         />
       ) : (
         <>
-          <Card className="overflow-hidden p-0">
+          <Card className="relative overflow-hidden p-0">
+            <div className="absolute right-3 top-3 z-[1000] flex gap-0.5 rounded-lg border border-border bg-card/95 p-1 shadow-panel backdrop-blur-sm">
+              <Button
+                variant={mode === "markers" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-2.5"
+                aria-pressed={mode === "markers"}
+                onClick={() => setMode("markers")}
+              >
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                Markers
+              </Button>
+              <Button
+                variant={mode === "heat" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 gap-1.5 px-2.5"
+                aria-pressed={mode === "heat"}
+                onClick={() => setMode("heat")}
+              >
+                <Flame className="h-3.5 w-3.5" aria-hidden="true" />
+                Heatmap
+              </Button>
+            </div>
+
             <div className="h-[560px] w-full">
               <IssueMapView
                 issues={issues}
                 detailBasePath={admin ? "/admin/reports" : "/reports"}
                 fitToIssues={issues.length > 0}
+                mode={mode}
               />
             </div>
           </Card>

@@ -3,6 +3,7 @@
 import "leaflet/dist/leaflet.css";
 
 import L from "leaflet";
+import "leaflet.heat";
 import { useEffect, useMemo } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 
@@ -62,6 +63,44 @@ function FitBounds({ issues, enabled }: { issues: MapIssue[]; enabled: boolean }
   return null;
 }
 
+/**
+ * Density of *reported problems*, not literal geographic risk - intensity is
+ * weighted by priority score so a cluster of critical reports glows hotter
+ * than the same number of low-priority ones, and the gradient reuses the
+ * same LOW-to-CRITICAL hues as every marker/badge/chart elsewhere, so this
+ * reads as the same severity language rather than an unrelated heat palette.
+ */
+function HeatmapLayer({ issues }: { issues: MapIssue[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const points: L.HeatLatLngTuple[] = issues.map((issue) => [
+      issue.latitude,
+      issue.longitude,
+      0.35 + (issue.priority_score / 100) * 0.65, // a floor so low-priority reports still register
+    ]);
+    if (points.length === 0) return;
+
+    const layer = L.heatLayer(points, {
+      radius: 26,
+      blur: 20,
+      maxZoom: 16,
+      gradient: {
+        0.0: PRIORITY_HEX.LOW,
+        0.45: PRIORITY_HEX.MEDIUM,
+        0.75: PRIORITY_HEX.HIGH,
+        1.0: PRIORITY_HEX.CRITICAL,
+      },
+    }).addTo(map);
+
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map, issues]);
+
+  return null;
+}
+
 /** Leaflet mis-measures when its container starts hidden or resizes. */
 function InvalidateOnMount() {
   const map = useMap();
@@ -89,6 +128,8 @@ export interface IssueMapProps {
   /** Where a popup's "View complaint" link should point. */
   detailBasePath?: string;
   onSelect?: (issue: MapIssue) => void;
+  /** "markers" (default) for individual pins, "heat" for a density layer. */
+  mode?: "markers" | "heat";
 }
 
 export default function IssueMap({
@@ -99,6 +140,7 @@ export default function IssueMap({
   fitToIssues = true,
   detailBasePath = "/reports",
   onSelect,
+  mode = "markers",
 }: IssueMapProps) {
   const markers = useMemo(
     () =>
@@ -123,8 +165,9 @@ export default function IssueMap({
       />
       <InvalidateOnMount />
       <FitBounds issues={markers} enabled={fitToIssues} />
+      {mode === "heat" ? <HeatmapLayer issues={markers} /> : null}
 
-      {markers.map((issue) => (
+      {mode === "markers" && markers.map((issue) => (
         <Marker
           key={issue.id}
           position={[issue.latitude, issue.longitude]}
