@@ -16,7 +16,6 @@ const CITIZEN_ONLY = ["/report", "/my-reports", "/profile"];
 const ADMIN_ONLY = ["/admin"];
 const TEAM_ONLY = ["/team"];
 
-const AUTH_PAGES = ["/login", "/register"];
 
 function homeFor(role: string | undefined): string {
   if (role === "ADMIN") return "/admin";
@@ -41,12 +40,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (token && AUTH_PAGES.includes(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = homeFor(role);
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
 
   const wantsAdmin = ADMIN_ONLY.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (wantsAdmin && token && role !== "ADMIN") {
