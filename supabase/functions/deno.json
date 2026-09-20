@@ -1,4 +1,7 @@
 {
+  "tasks": {
+    "test": "deno test --allow-env api/"
+  },
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.116.0",
     "hono": "npm:hono@4.6.14",

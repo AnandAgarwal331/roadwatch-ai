@@ -85,6 +85,11 @@ npm run build
 
 # Edge Function - type-check every file (no bundler step; Deno reads TS directly)
 deno check --config supabase/functions/deno.json $(find supabase/functions/api -name "*.ts")
+
+# Edge Function - unit tests for the scoring engines, geo math and serializers
+# (run from supabase/functions/, not supabase/functions/api/, so the lockfile
+# update lands in the tracked supabase/functions/deno.lock)
+cd supabase/functions && deno task test
 ```
 
 Every external dependency the Edge Function calls (AI, traffic, places,
