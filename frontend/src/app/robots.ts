@@ -7,8 +7,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      // Signed-in consoles and APIs have nothing for a search engine.
-      disallow: ["/admin", "/team", "/api", "/my-reports", "/profile", "/report"],
+      // Signed-in consoles and APIs have nothing for a search engine. Not
+      // "/report": robots rules match by prefix, so that would also hide the
+      // public /reports feed.
+      disallow: ["/admin", "/team", "/api", "/my-reports", "/profile"],
     },
     sitemap: `${siteUrl()}/sitemap.xml`,
   };
