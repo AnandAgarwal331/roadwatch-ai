@@ -80,7 +80,7 @@ npx supabase functions deploy api     # deploy the Edge Function
 cd frontend
 npm run typecheck
 npm run lint
-npm test               # 47 tests
+npm test               # 54 tests
 npm run build
 
 # Edge Function - type-check every file (no bundler step; Deno reads TS directly)

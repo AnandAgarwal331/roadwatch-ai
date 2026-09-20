@@ -34,6 +34,18 @@ export default function RegisterPage() {
         </p>
 
         <p className="text-center text-xs text-muted-foreground">
+          By creating an account you agree to the{" "}
+          <Link href="/terms" className="underline hover:text-foreground">
+            terms of use
+          </Link>{" "}
+          and the{" "}
+          <Link href="/privacy" className="underline hover:text-foreground">
+            privacy notice
+          </Link>
+          .
+        </p>
+
+        <p className="text-center text-xs text-muted-foreground">
           Accounts created here are citizen accounts. Municipal staff and repair crews are
           provisioned by an administrator.
         </p>

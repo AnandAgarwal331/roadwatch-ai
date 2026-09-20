@@ -120,7 +120,7 @@ export function UsersAdmin() {
           description="Try a different search or role filter."
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="relative overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-sm">
             <thead className="border-b border-border text-left text-xs text-muted-foreground">
               <tr>

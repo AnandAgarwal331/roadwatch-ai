@@ -25,6 +25,7 @@ import {
   SUPABASE_PUBLISHABLE_KEY,
   SUPABASE_URL,
 } from "@/lib/session";
+import { passwordProblem } from "@/lib/password-rules";
 import type { User } from "@/types";
 
 const ACTIONS = { login: "/auth/v1/token?grant_type=password", register: "/auth/v1/signup" } as const;
@@ -73,6 +74,85 @@ export async function POST(
       httpOnly: false,
     });
     return response;
+  }
+
+  if (action === "forgot") {
+    const payload = await request.json().catch(() => null);
+    const email = typeof payload?.email === "string" ? payload.email.trim() : "";
+    if (!email) {
+      return NextResponse.json(
+        { error: { code: "validation_error", message: "Enter your email address." } },
+        { status: 422 },
+      );
+    }
+
+    try {
+      // The link in the email lands on /reset-password; that address must also
+      // be on the Supabase project's allowed redirect list.
+      const redirectTo = encodeURIComponent(`${request.nextUrl.origin}/reset-password`);
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${redirectTo}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ email }),
+        cache: "no-store",
+      });
+      if (!response.ok) console.error(`password recovery request failed: HTTP ${response.status}`);
+    } catch {
+      return unreachableResponse();
+    }
+
+    // Identical answer whether or not the address has an account, so this
+    // form cannot be used to find out who is registered.
+    return NextResponse.json({
+      message: "If an account exists for that email, a reset link is on its way.",
+    });
+  }
+
+  if (action === "reset") {
+    const payload = await request.json().catch(() => null);
+    const accessToken = typeof payload?.access_token === "string" ? payload.access_token : "";
+    const password = typeof payload?.password === "string" ? payload.password : "";
+    const problem = passwordProblem(password);
+    if (!accessToken || problem) {
+      return NextResponse.json(
+        { error: { code: "validation_error", message: problem ?? "This reset link is not valid." } },
+        { status: 422 },
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ password }),
+        cache: "no-store",
+      });
+    } catch {
+      return unreachableResponse();
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const expired = response.status === 401 || response.status === 403;
+      return NextResponse.json(
+        {
+          error: {
+            code: expired ? "link_expired" : "auth_failed",
+            message: expired
+              ? "This reset link has expired or was already used. Request a new one."
+              : (body?.msg ?? body?.message ?? "Could not update your password. Please try again."),
+          },
+        },
+        { status: expired ? 401 : response.status },
+      );
+    }
+
+    return NextResponse.json({ message: "Your password has been updated. You can sign in now." });
   }
 
   if (!isAction(action)) {

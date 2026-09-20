@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
 import { Providers } from "@/app/providers";
+import { siteUrl } from "@/lib/site-url";
 
 import "./globals.css";
 
@@ -12,6 +13,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
+  openGraph: {
+    type: "website",
+    siteName: "RoadWatch AI",
+    title: "RoadWatch AI - Make every road safer",
+    description:
+      "Report road damage, let AI identify the problem, and help cities fix what matters most.",
+  },
+  twitter: { card: "summary_large_image" },
   title: {
     default: "RoadWatch AI - Make every road safer",
     template: "%s | RoadWatch AI",

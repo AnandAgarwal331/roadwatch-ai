@@ -25,6 +25,12 @@ export default function LoginPage() {
           <AuthForm mode="login" />
         </Suspense>
 
+        <p className="text-center text-sm">
+          <Link href="/forgot-password" className="font-medium text-primary hover:underline">
+            Forgot your password?
+          </Link>
+        </p>
+
         <p className="text-center text-sm text-muted-foreground">
           New here?{" "}
           <Link href="/register" className="font-medium text-primary hover:underline">

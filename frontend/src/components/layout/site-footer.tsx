@@ -20,13 +20,20 @@ const COLUMNS = [
       { href: "/login", label: "Staff sign in" },
     ],
   },
+  {
+    heading: "About",
+    links: [
+      { href: "/privacy", label: "Privacy notice" },
+      { href: "/terms", label: "Terms of use" },
+    ],
+  },
 ];
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-muted/30">
       <div className="container py-12">
-        <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr]">
+        <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
             <Logo />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
