@@ -150,7 +150,9 @@ export function UsersAdmin() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {user.team_id ? (teamName.get(user.team_id) ?? "Unknown crew") : "-"}
+                    {user.team_id
+                      ? (teamName.get(user.team_id) ?? (teams.isPending ? "..." : "Unknown crew"))
+                      : "-"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Button variant="outline" size="sm" onClick={() => setEditing(user)}>
