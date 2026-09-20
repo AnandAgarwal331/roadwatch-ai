@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users } from "lucide-react";
+import { Plus, Trash2, Users } from "lucide-react";
 import * as React from "react";
 
 import { PageHeading } from "@/components/dashboard/dashboard-shell";
@@ -27,6 +27,7 @@ import type { RepairTeam, RepairTeamWithLoad } from "@/types";
 export function TeamsAdmin() {
   const [editing, setEditing] = React.useState<RepairTeamWithLoad | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [deleting, setDeleting] = React.useState<RepairTeamWithLoad | null>(null);
 
   const query = useQuery({
     queryKey: ["admin", "teams"],
@@ -68,10 +69,17 @@ export function TeamsAdmin() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {query.data.map((team) => (
-            <TeamCard key={team.id} team={team} onEdit={() => setEditing(team)} />
+            <TeamCard
+              key={team.id}
+              team={team}
+              onEdit={() => setEditing(team)}
+              onDelete={() => setDeleting(team)}
+            />
           ))}
         </div>
       )}
+
+      <DeleteTeamDialog team={deleting} onClose={() => setDeleting(null)} />
 
       <TeamDialog
         key={editing?.id ?? "new"}
@@ -88,7 +96,15 @@ export function TeamsAdmin() {
   );
 }
 
-function TeamCard({ team, onEdit }: { team: RepairTeamWithLoad; onEdit: () => void }) {
+function TeamCard({
+  team,
+  onEdit,
+  onDelete,
+}: {
+  team: RepairTeamWithLoad;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   // Load is a ratio against a limit, so it is a meter rather than a chart.
   const load = team.max_concurrent_jobs > 0 ? team.open_jobs / team.max_concurrent_jobs : 0;
   const atCapacity = team.open_jobs >= team.max_concurrent_jobs;
@@ -167,9 +183,21 @@ function TeamCard({ team, onEdit }: { team: RepairTeamWithLoad; onEdit: () => vo
           )}
         </div>
 
-        <Button variant="outline" size="sm" className="w-full" onClick={onEdit}>
-          Edit crew
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
+            Edit crew
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onDelete}
+            aria-label={`Delete ${team.name}`}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -343,6 +371,51 @@ function TeamDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The API refuses to delete a crew that has job history or members (see
+ * services/teams.ts for why), so this dialog just surfaces its explanation
+ * rather than trying to predict the outcome client-side.
+ */
+function DeleteTeamDialog({ team, onClose }: { team: RepairTeamWithLoad | null; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: () => api.delete<{ message: string }>(`/admin/teams/${team!.id}`),
+    onSuccess: (result) => {
+      success("Crew deleted", result?.message);
+      void queryClient.invalidateQueries({ queryKey: ["admin"] });
+      onClose();
+    },
+    onError: (error: unknown) => {
+      toastError("Could not delete this crew", errorMessage(error));
+      onClose();
+    },
+  });
+
+  return (
+    <Dialog open={team !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {team?.name}?</DialogTitle>
+          <DialogDescription>
+            This cannot be undone. A crew can only be deleted when it has no jobs on record and no
+            members - otherwise deactivate it from Edit crew, which keeps its history.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? "Deleting..." : "Delete crew"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

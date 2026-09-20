@@ -27,6 +27,7 @@ import * as analytics from "../services/analytics.ts";
 import { DuplicateService } from "../services/duplicates.ts";
 import { listRecentAudit, recordAudit } from "../services/audit.ts";
 import { planUserUpdate } from "../services/users.ts";
+import { assertTeamDeletable } from "../services/teams.ts";
 import {
   assignTeam,
   changeStatus,
@@ -368,6 +369,38 @@ admin.patch("/teams/:id", async (c) => {
   });
 
   return c.json(updated);
+});
+
+admin.delete("/teams/:id", async (c) => {
+  const actor = await requireAdmin(c.req.raw);
+  const req = c.req.raw;
+  const id = c.req.param("id");
+  const client = serviceClient();
+
+  const team = await getTeam(client, id);
+  if (!team) throw new NotFoundError("That team does not exist.");
+
+  const [jobs, members] = await Promise.all([
+    client.from("repair_assignments").select("id", { count: "exact", head: true }).eq("team_id", id),
+    client.from("profiles").select("id", { count: "exact", head: true }).eq("team_id", id),
+  ]);
+  if (jobs.error) throw jobs.error;
+  if (members.error) throw members.error;
+  assertTeamDeletable(team.name as string, jobs.count ?? 0, members.count ?? 0);
+
+  const { error } = await client.from("repair_teams").delete().eq("id", id);
+  if (error) throw error;
+
+  await recordAudit(client, {
+    actor,
+    action: "team.deleted",
+    entityType: "repair_team",
+    entityId: id,
+    oldValue: { name: team.name, code: team.code },
+    ipAddress: clientIp(req),
+  });
+
+  return c.json({ message: `${team.name} was deleted.` });
 });
 
 // -- users ------------------------------------------------------------------
