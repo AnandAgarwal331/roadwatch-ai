@@ -345,20 +345,25 @@ export async function changeStatus(
   const { data: updated, error } = await client.from("complaints").update(patch).eq("id", complaint.id).select().single();
   if (error) throw error;
 
-  await recordStatus(client, complaint.id, current, newStatus, actor.id, note);
-  await recordAudit(client, {
-    actor,
-    action: "complaint.status_changed",
-    entityType: "complaint",
-    entityId: complaint.id,
-    complaintId: complaint.id,
-    oldValue: { status: current },
-    newValue: { status: newStatus },
-    note,
-  });
-
-  if (newStatus === "RESOLVED") await notifications.complaintResolved(client, updated);
-  else await notifications.complaintStatusChanged(client, updated, current);
+  // Three independent writes - none reads another's result, all three only
+  // need the already-committed `updated` row - so they run concurrently
+  // rather than adding three sequential round trips to the response time.
+  await Promise.all([
+    recordStatus(client, complaint.id, current, newStatus, actor.id, note),
+    recordAudit(client, {
+      actor,
+      action: "complaint.status_changed",
+      entityType: "complaint",
+      entityId: complaint.id,
+      complaintId: complaint.id,
+      oldValue: { status: current },
+      newValue: { status: newStatus },
+      note,
+    }),
+    newStatus === "RESOLVED"
+      ? notifications.complaintResolved(client, updated)
+      : notifications.complaintStatusChanged(client, updated, current),
+  ]);
 
   return updated;
 }
@@ -451,24 +456,28 @@ export async function assignTeam(
     notes: note ?? null,
   });
 
-  if (complaint.status !== "ASSIGNED") {
-    await client.from("complaints").update({ status: "ASSIGNED" }).eq("id", complaint.id);
-    await recordStatus(client, complaint.id, complaint.status as ComplaintStatus, "ASSIGNED", actor.id, `Assigned to ${team.name}`);
-  }
-
-  await recordAudit(client, {
-    actor,
-    action: "complaint.assigned",
-    entityType: "repair_assignment",
-    entityId: assignment.id,
-    complaintId: complaint.id,
-    oldValue: { team_id: existing?.team_id ?? null },
-    newValue: { team_id: team.id, team_name: team.name },
-    note,
-  });
-
+  // Independent writes/side effects, run concurrently rather than as four
+  // sequential round trips - none of them reads another's result, they all
+  // just need values already in scope (complaint, team, assignment).
   const updatedComplaint: ComplaintRow = { ...complaint, status: "ASSIGNED" };
-  await notifications.complaintAssigned(client, updatedComplaint, team.id, team.name as string);
+  const sideEffects: PromiseLike<unknown>[] = [
+    recordAudit(client, {
+      actor,
+      action: "complaint.assigned",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: complaint.id,
+      oldValue: { team_id: existing?.team_id ?? null },
+      newValue: { team_id: team.id, team_name: team.name },
+      note,
+    }),
+    notifications.complaintAssigned(client, updatedComplaint, team.id, team.name as string),
+  ];
+  if (complaint.status !== "ASSIGNED") {
+    sideEffects.push(client.from("complaints").update({ status: "ASSIGNED" }).eq("id", complaint.id));
+    sideEffects.push(recordStatus(client, complaint.id, complaint.status as ComplaintStatus, "ASSIGNED", actor.id, `Assigned to ${team.name}`));
+  }
+  await Promise.all(sideEffects);
 
   return assignment;
 }
@@ -485,9 +494,11 @@ export async function startRepair(assignment: RepairAssignmentRow, actor: Authed
 
   const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
   if (complaint && complaint.status !== "IN_PROGRESS") {
-    await client.from("complaints").update({ status: "IN_PROGRESS" }).eq("id", assignment.complaint_id);
-    await recordStatus(client, assignment.complaint_id, complaint.status, "IN_PROGRESS", actor.id, "Repair work started");
-    await notifications.complaintStatusChanged(client, { ...complaint, status: "IN_PROGRESS" }, complaint.status);
+    await Promise.all([
+      client.from("complaints").update({ status: "IN_PROGRESS" }).eq("id", assignment.complaint_id),
+      recordStatus(client, assignment.complaint_id, complaint.status, "IN_PROGRESS", actor.id, "Repair work started"),
+      notifications.complaintStatusChanged(client, { ...complaint, status: "IN_PROGRESS" }, complaint.status),
+    ]);
   }
 
   return updated;
@@ -514,23 +525,28 @@ export async function completeRepair(
   }
 
   const client = serviceClient();
-  for (const file of evidenceFiles) {
-    const processed = await validateAndProcess(file.bytes, file.contentType);
-    const ext = EXT_FOR_MIME[processed.contentType] ?? "jpg";
-    const path = `${assignment.id}/${crypto.randomUUID()}.${ext}`;
-    const { error: uploadErr } = await client.storage.from("repair-evidence").upload(path, processed.data, { contentType: processed.contentType });
-    if (uploadErr) throw uploadErr;
-    const { data: pub } = client.storage.from("repair-evidence").getPublicUrl(path);
-    await addEvidence(client, {
-      assignment_id: assignment.id,
-      submitted_by_id: actor.id,
-      storage_key: path,
-      url: pub.publicUrl,
-      content_type: processed.contentType,
-      size_bytes: processed.data.length,
-      note,
-    });
-  }
+  // Each photo's upload + row insert is independent of the others - was a
+  // sequential loop, now concurrent, so uploading several evidence photos
+  // costs one round trip's worth of time instead of one per photo.
+  await Promise.all(
+    evidenceFiles.map(async (file) => {
+      const processed = await validateAndProcess(file.bytes, file.contentType);
+      const ext = EXT_FOR_MIME[processed.contentType] ?? "jpg";
+      const path = `${assignment.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await client.storage.from("repair-evidence").upload(path, processed.data, { contentType: processed.contentType });
+      if (uploadErr) throw uploadErr;
+      const { data: pub } = client.storage.from("repair-evidence").getPublicUrl(path);
+      await addEvidence(client, {
+        assignment_id: assignment.id,
+        submitted_by_id: actor.id,
+        storage_key: path,
+        url: pub.publicUrl,
+        content_type: processed.contentType,
+        size_bytes: processed.data.length,
+        note,
+      });
+    }),
+  );
 
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { status: "COMPLETED", completed_at: now };
@@ -539,23 +555,27 @@ export async function completeRepair(
   const updated = await updateAssignment(client, assignment.id, patch);
 
   const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
-  if (complaint && complaint.status !== "IN_PROGRESS") {
-    await client.from("complaints").update({ status: "IN_PROGRESS" }).eq("id", assignment.complaint_id);
-    await recordStatus(client, assignment.complaint_id, complaint.status, "IN_PROGRESS", actor.id, "Repair completed, awaiting verification");
-  }
-
-  await recordAudit(client, {
-    actor,
-    action: "repair.completed",
-    entityType: "repair_assignment",
-    entityId: assignment.id,
-    complaintId: assignment.complaint_id,
-    newValue: { status: "COMPLETED" },
-    note,
-  });
-
   const teamName = (assignment as any).team?.name ?? "The crew";
-  await notifications.repairCompleted(client, complaint ?? { id: assignment.complaint_id, complaint_number: "" }, teamName);
+
+  // Independent writes/side effects, run concurrently - see changeStatus's
+  // own comment on this pattern.
+  const sideEffects: PromiseLike<unknown>[] = [
+    recordAudit(client, {
+      actor,
+      action: "repair.completed",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: assignment.complaint_id,
+      newValue: { status: "COMPLETED" },
+      note,
+    }),
+    notifications.repairCompleted(client, complaint ?? { id: assignment.complaint_id, complaint_number: "" }, teamName),
+  ];
+  if (complaint && complaint.status !== "IN_PROGRESS") {
+    sideEffects.push(client.from("complaints").update({ status: "IN_PROGRESS" }).eq("id", assignment.complaint_id));
+    sideEffects.push(recordStatus(client, assignment.complaint_id, complaint.status, "IN_PROGRESS", actor.id, "Repair completed, awaiting verification"));
+  }
+  await Promise.all(sideEffects);
 
   return updated;
 }
@@ -567,9 +587,18 @@ export async function verifyRepair(assignment: RepairAssignmentRow, actor: Authe
 
   const client = serviceClient();
   const now = new Date().toISOString();
-  const updated = await updateAssignment(client, assignment.id, { status: "VERIFIED", verified_at: now, verified_by_id: actor.id });
 
-  const previousStatus = (await getComplaintById(client, assignment.complaint_id))?.status as ComplaintStatus;
+  // updateAssignment and the previous-status read touch different rows and
+  // don't depend on each other, so they run concurrently. The complaints
+  // UPDATE below must NOT join that pair, though - it would race the
+  // previous-status SELECT (both hit the same row) and could read the
+  // already-RESOLVED value instead of the true "before" status.
+  const [updated, previousComplaint] = await Promise.all([
+    updateAssignment(client, assignment.id, { status: "VERIFIED", verified_at: now, verified_by_id: actor.id }),
+    getComplaintById(client, assignment.complaint_id),
+  ]);
+  const previousStatus = previousComplaint?.status as ComplaintStatus;
+
   const { data: complaint, error } = await client
     .from("complaints")
     .update({ status: "RESOLVED", resolved_at: now })
@@ -578,18 +607,22 @@ export async function verifyRepair(assignment: RepairAssignmentRow, actor: Authe
     .single();
   if (error) throw error;
 
-  await recordStatus(client, assignment.complaint_id, previousStatus, "RESOLVED", actor.id, note ?? "Repair verified");
-  await recordAudit(client, {
-    actor,
-    action: "repair.verified",
-    entityType: "repair_assignment",
-    entityId: assignment.id,
-    complaintId: assignment.complaint_id,
-    oldValue: { status: previousStatus },
-    newValue: { status: "RESOLVED" },
-    note,
-  });
-  await notifications.complaintResolved(client, complaint);
+  // Independent writes/side effects, run concurrently - see changeStatus's
+  // own comment on this pattern.
+  await Promise.all([
+    recordStatus(client, assignment.complaint_id, previousStatus, "RESOLVED", actor.id, note ?? "Repair verified"),
+    recordAudit(client, {
+      actor,
+      action: "repair.verified",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: assignment.complaint_id,
+      oldValue: { status: previousStatus },
+      newValue: { status: "RESOLVED" },
+      note,
+    }),
+    notifications.complaintResolved(client, complaint),
+  ]);
 
   return updated;
 }
@@ -602,15 +635,17 @@ export async function confirmDuplicate(linkId: string, actor: AuthedProfile): Pr
 
   const { canonical, duplicate } = await duplicates.confirm(linkId, actor.id);
 
-  await recordStatus(client, duplicate.id, null, "DUPLICATE", actor.id, `Merged into ${canonical.complaint_number}`);
-  await recordAudit(client, {
-    actor,
-    action: "complaint.duplicate_confirmed",
-    entityType: "complaint",
-    entityId: duplicate.id,
-    complaintId: canonical.id,
-    newValue: { canonical: canonical.complaint_number, duplicate: duplicate.complaint_number, report_count: canonical.report_count },
-  });
+  await Promise.all([
+    recordStatus(client, duplicate.id, null, "DUPLICATE", actor.id, `Merged into ${canonical.complaint_number}`),
+    recordAudit(client, {
+      actor,
+      action: "complaint.duplicate_confirmed",
+      entityType: "complaint",
+      entityId: duplicate.id,
+      complaintId: canonical.id,
+      newValue: { canonical: canonical.complaint_number, duplicate: duplicate.complaint_number, report_count: canonical.report_count },
+    }),
+  ]);
 
   return { canonical, duplicate };
 }
