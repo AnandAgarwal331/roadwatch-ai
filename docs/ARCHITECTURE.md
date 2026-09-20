@@ -181,7 +181,7 @@ same pattern before and after the migration:
 
 | Provider | Options |
 |---|---|
-| AI | `mock`, `http` (the optional standalone inference service) |
+| AI | `mock`, `http` (the optional standalone inference service), `qwen` (Qwen-VL via an OpenAI-compatible API; approximate boxes, self-reported confidence - measure before trusting) |
 | Traffic | `mock`, `http` |
 | Places | `seeded`, `overpass` (public OpenStreetMap, blocks automated traffic in practice), `geoapify` (real data, free-tier API key) |
 | Storage | Supabase Storage only (`complaint-photos` public bucket, `repair-evidence` private bucket) |

@@ -43,7 +43,15 @@ export const settings = {
   IMAGE_MAX_DIMENSION: envInt("IMAGE_MAX_DIMENSION", 1600),
 
   // -- AI / traffic / places / weather providers --
+  // "mock" (dev stub), "http" (the standalone inference service) or "qwen"
+  // (a Qwen-VL model through any OpenAI-compatible API - see providers/ai/qwen.ts).
   AI_PROVIDER: Deno.env.get("AI_PROVIDER") ?? "mock",
+  // Used by the qwen provider. Defaults are for Alibaba Cloud Model Studio
+  // (international); for OpenRouter use https://openrouter.ai/api/v1 and a
+  // model id such as qwen/qwen2.5-vl-72b-instruct.
+  AI_API_KEY: Deno.env.get("AI_API_KEY") ?? "",
+  AI_MODEL: Deno.env.get("AI_MODEL") ?? "qwen-vl-max",
+  AI_BASE_URL: Deno.env.get("AI_BASE_URL") ?? "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   AI_SERVICE_URL: Deno.env.get("AI_SERVICE_URL") ?? "http://localhost:8001",
   AI_MIN_CONFIDENCE: envFloat("AI_MIN_CONFIDENCE", 0.45),
   TRAFFIC_PROVIDER: Deno.env.get("TRAFFIC_PROVIDER") ?? "mock",
