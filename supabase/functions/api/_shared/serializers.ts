@@ -208,6 +208,31 @@ export function toDuplicateCandidate(candidate: DuplicateCandidate): Record<stri
   };
 }
 
+/**
+ * The `{ items, meta }` envelope the frontend's `Paginated<T>` type expects
+ * (ported from FastAPI's `PageMeta` response model) - `meta.pages`, not
+ * `total_pages`, and `has_next`/`has_previous` alongside it.
+ */
+export function paginated<T>(
+  items: T[],
+  total: number,
+  page: number,
+  pageSize: number,
+): { items: T[]; meta: Record<string, unknown> } {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  return {
+    items,
+    meta: {
+      total,
+      page,
+      page_size: pageSize,
+      pages,
+      has_next: page < pages,
+      has_previous: page > 1,
+    },
+  };
+}
+
 // deno-lint-ignore no-explicit-any
 export function nextStep(complaint: any, needsManualReview: boolean): string {
   if (needsManualReview) {

@@ -12,7 +12,7 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { ConflictError, NotFoundError, ValidationError } from "../_shared/errors.ts";
 import { settings } from "../_shared/config.ts";
 import { ENGINE_VERSION } from "../services/priority.ts";
-import { toDetail, toDuplicateLink, toSummary } from "../_shared/serializers.ts";
+import { toDetail, toDuplicateLink, toSummary, paginated } from "../_shared/serializers.ts";
 import { getComplaintFull, listComplaints, type ComplaintFilters } from "../repositories/complaint.ts";
 import {
   activeAssignmentForComplaint,
@@ -176,13 +176,7 @@ admin.get("/reports", async (c) => {
     sortDir: (url.searchParams.get("sort_dir") ?? "desc") as "asc" | "desc",
   });
 
-  return c.json({
-    items: items.map(toSummary),
-    total,
-    page,
-    page_size: pageSize,
-    total_pages: Math.max(1, Math.ceil(total / pageSize)),
-  });
+  return c.json(paginated(items.map(toSummary), total, page, pageSize));
 });
 
 admin.get("/reports/:id", async (c) => {

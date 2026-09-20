@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { AuthenticationError, NotFoundError, PermissionDeniedError, ValidationError } from "../_shared/errors.ts";
 import { userClient, currentUserId } from "../_shared/supabase.ts";
 import { writeRateLimit } from "../_shared/rate_limit.ts";
-import { toDetail, toDuplicateCandidate, toPriorityResponse, toSummary, nextStep } from "../_shared/serializers.ts";
+import { toDetail, toDuplicateCandidate, toPriorityResponse, toSummary, nextStep, paginated } from "../_shared/serializers.ts";
 import { CLOSED_STATUSES, type ComplaintStatus, type DamageType, type PriorityLevel } from "../_shared/enums.ts";
 import { listComplaints, getComplaintFull, type ComplaintFilters } from "../repositories/complaint.ts";
 import { createComplaint, reassessComplaint } from "../services/complaints.ts";
@@ -144,13 +144,7 @@ complaints.get("/", async (c) => {
   };
 
   const { items, total } = await listComplaints(uClient, filters, { page, pageSize, sortBy, sortDir });
-  return c.json({
-    items: items.map(toSummary),
-    total,
-    page,
-    page_size: pageSize,
-    total_pages: Math.max(1, Math.ceil(total / pageSize)),
-  });
+  return c.json(paginated(items.map(toSummary), total, page, pageSize));
 });
 
 complaints.get("/mine", async (c) => {
@@ -168,13 +162,7 @@ complaints.get("/mine", async (c) => {
 
   const filters: ComplaintFilters = { reporterId: userId, status: statusParam.length > 0 ? statusParam : undefined };
   const { items, total } = await listComplaints(uClient, filters, { page, pageSize, sortBy, sortDir });
-  return c.json({
-    items: items.map(toSummary),
-    total,
-    page,
-    page_size: pageSize,
-    total_pages: Math.max(1, Math.ceil(total / pageSize)),
-  });
+  return c.json(paginated(items.map(toSummary), total, page, pageSize));
 });
 
 complaints.get("/:id", async (c) => {
