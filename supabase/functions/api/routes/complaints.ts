@@ -3,7 +3,7 @@
 // detail/priority breakdown, and re-run analysis.
 
 import { Hono } from "hono";
-import { AuthenticationError, NotFoundError, PermissionDeniedError, ValidationError } from "../_shared/errors.ts";
+import { AuthenticationError, ConflictError, NotFoundError, PermissionDeniedError, ValidationError } from "../_shared/errors.ts";
 import { userClient, currentUserId } from "../_shared/supabase.ts";
 import { writeRateLimit } from "../_shared/rate_limit.ts";
 import { toDetail, toDuplicateCandidate, toPriorityResponse, toSummary, nextStep, paginated } from "../_shared/serializers.ts";
@@ -196,6 +196,32 @@ complaints.get("/:id/priority", async (c) => {
   const response = toPriorityResponse(complaint);
   if (!response) throw new NotFoundError("This report has not been scored yet.");
   return c.json(response);
+});
+
+// Only while status is PENDING/AI_ANALYZED/PRIORITIZED - see
+// delete_own_complaint's own comment for why. Kept here too so the 409's
+// wording can be specific without the RPC needing to know about HTTP.
+complaints.delete("/:id", async (c) => {
+  const req = c.req.raw;
+  const uClient = userClient(req);
+  await writeRateLimit(uClient, req);
+
+  const userId = await currentUserId(req);
+  if (!userId) throw new AuthenticationError("Please sign in to delete a report.");
+
+  const id = c.req.param("id");
+  const { error } = await uClient.rpc("delete_own_complaint", { p_complaint_id: id });
+  if (error) {
+    if (error.code === "P0002") throw new NotFoundError("That report could not be found.");
+    if (error.code === "P0001") {
+      throw new ConflictError(
+        "This report has already been processed and can no longer be deleted. Contact an administrator if it needs to be removed.",
+      );
+    }
+    throw error;
+  }
+
+  return c.json({ message: "Report deleted." });
 });
 
 complaints.post("/:id/analyze", async (c) => {

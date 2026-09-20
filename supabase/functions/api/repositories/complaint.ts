@@ -57,6 +57,7 @@ export async function findNearby(
   let query = client
     .from("complaints")
     .select("*")
+    .is("deleted_at", null)
     .gte("latitude", box.minLat)
     .lte("latitude", box.maxLat)
     .gte("longitude", box.minLon)
@@ -134,6 +135,10 @@ async function resolveTeamComplaintIds(client: SupabaseClient, teamId: string): 
 }
 
 function applyFilters(query: any, filters: ComplaintFilters, teamComplaintIds: string[] | null) {
+  // A soft-deleted report (see delete_own_complaint) never appears in any
+  // listing or on the map - not even for admins, who can still audit one
+  // directly by id (getComplaintFull/getComplaintById carry no such filter).
+  query = query.is("deleted_at", null);
   if (filters.status !== undefined) query = query.in("status", filters.status);
   if (filters.damageType !== undefined) query = query.in("damage_type", filters.damageType);
   if (filters.priorityLevel !== undefined) query = query.in("priority_level", filters.priorityLevel);

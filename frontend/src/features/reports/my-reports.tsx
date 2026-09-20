@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Plus } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
@@ -10,15 +10,30 @@ import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/shared/states";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 import { api, errorMessage } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/constants";
 import type { ComplaintStatus, ComplaintSummary, Paginated } from "@/types";
+
+// Mirrors the backend's delete_own_complaint RPC: deletion is only offered
+// before anyone (a repair team or an admin) has acted on the report - see
+// that migration's comment for why. Kept in sync by hand since the backend
+// doesn't expose the rule as data.
+const DELETABLE_STATUSES: ComplaintStatus[] = ["PENDING", "AI_ANALYZED", "PRIORITIZED"];
 
 const ANY = "ANY";
 const PAGE_SIZE = 12;
@@ -53,8 +68,11 @@ export function MyReports() {
   const [status, setStatus] = React.useState<string>(ANY);
   const [sort, setSort] = React.useState<string>("created_at:desc");
   const [page, setPage] = React.useState(1);
+  const [deleteTarget, setDeleteTarget] = React.useState<ComplaintSummary | null>(null);
 
   const [sortBy, sortDir] = sort.split(":");
+  const queryClient = useQueryClient();
+  const { success, error: toastError } = useToast();
 
   const query = useQuery({
     queryKey: ["my-complaints", { status, sort, page }],
@@ -67,6 +85,16 @@ export function MyReports() {
         status: status === ANY ? undefined : status,
       }),
     placeholderData: keepPreviousData,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/complaints/${id}`),
+    onSuccess: () => {
+      success("Report deleted");
+      setDeleteTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ["my-complaints"] });
+    },
+    onError: (error: unknown) => toastError("Could not delete this report", errorMessage(error)),
   });
 
   // Counted from the page in hand, so the wording stays honest about scope.
@@ -171,7 +199,12 @@ export function MyReports() {
         <>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((complaint) => (
-              <ComplaintCard key={complaint.id} complaint={complaint} />
+              <ComplaintCard
+                key={complaint.id}
+                complaint={complaint}
+                onDelete={DELETABLE_STATUSES.includes(complaint.status) ? () => setDeleteTarget(complaint) : undefined}
+                deleting={deleteMutation.isPending && deleteMutation.variables === complaint.id}
+              />
             ))}
           </div>
 
@@ -203,6 +236,32 @@ export function MyReports() {
           ) : null}
         </>
       )}
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this report?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `${deleteTarget.complaint_number} will be removed from your reports. This cannot be undone.`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete report"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

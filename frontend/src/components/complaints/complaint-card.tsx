@@ -1,10 +1,11 @@
 "use client";
 
-import { Layers, MapPin } from "lucide-react";
+import { Layers, MapPin, Trash2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
 import { DamageTypeBadge, PriorityBadge, StatusBadge } from "@/components/complaints/badges";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DAMAGE_TYPE_LABELS } from "@/lib/constants";
@@ -15,9 +16,17 @@ interface ComplaintCardProps {
   complaint: ComplaintSummary;
   href?: string;
   className?: string;
+  /**
+   * Shows a "Delete" row below the card, outside the link so it stays a
+   * sibling of the anchor rather than an invalid nested interactive
+   * element. Only my-reports.tsx passes this - a reporter deleting their
+   * own mistaken submission, never the admin queue or map popups.
+   */
+  onDelete?: () => void;
+  deleting?: boolean;
 }
 
-export function ComplaintCard({ complaint, href, className }: ComplaintCardProps) {
+export function ComplaintCard({ complaint, href, className, onDelete, deleting }: ComplaintCardProps) {
   const target = href ?? `/reports/${complaint.id}`;
   const [imageFailed, setImageFailed] = React.useState(false);
 
@@ -86,6 +95,21 @@ export function ComplaintCard({ complaint, href, className }: ComplaintCardProps
           <p className="text-xs text-muted-foreground">Reported {timeAgo(complaint.created_at)}</p>
         </div>
       </Link>
+
+      {onDelete ? (
+        <div className="border-t border-border px-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto gap-1.5 p-0 text-xs text-muted-foreground hover:bg-transparent hover:text-destructive"
+            onClick={onDelete}
+            disabled={deleting}
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            {deleting ? "Deleting..." : "Delete this report"}
+          </Button>
+        </div>
+      ) : null}
     </Card>
   );
 }
