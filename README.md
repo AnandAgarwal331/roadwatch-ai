@@ -114,7 +114,7 @@ every key and its default). The values that matter most:
 |---|---|---|
 | `AI_PROVIDER` | `mock` | `http` to use the inference service (`AI_SERVICE_URL`) |
 | `TRAFFIC_PROVIDER` | `mock` | |
-| `PLACES_PROVIDER` | `seeded` | `overpass` for live OpenStreetMap data |
+| `PLACES_PROVIDER` | `seeded` | `overpass` for public OpenStreetMap data (unreliable - see the provider's own comment), `geoapify` for a real, paid-but-free-tier places API (needs `PLACES_API_KEY`) |
 | `WEATHER_ENABLED` | `false` | |
 | `PRIORITY_WEIGHT_*` | 4.0 / 2.5 / 2.0 / 1.5 | Severity, traffic, location, history |
 | `PRIORITY_THRESHOLD_*` | 40 / 70 / 85 | Medium, high, critical bands |

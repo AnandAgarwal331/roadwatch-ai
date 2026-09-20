@@ -180,7 +180,7 @@ same pattern before and after the migration:
 |---|---|
 | AI | `mock`, `http` (the optional standalone inference service) |
 | Traffic | `mock`, `http` |
-| Places | `seeded`, `overpass` (OpenStreetMap) |
+| Places | `seeded`, `overpass` (public OpenStreetMap, blocks automated traffic in practice), `geoapify` (real data, free-tier API key) |
 | Storage | Supabase Storage only (`complaint-photos` public bucket, `repair-evidence` private bucket) |
 | Weather | `mock` (off by default) |
 

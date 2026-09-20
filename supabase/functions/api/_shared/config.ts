@@ -49,8 +49,11 @@ export const settings = {
   TRAFFIC_PROVIDER: Deno.env.get("TRAFFIC_PROVIDER") ?? "mock",
   TRAFFIC_API_KEY: Deno.env.get("TRAFFIC_API_KEY") ?? "",
   TRAFFIC_API_URL: Deno.env.get("TRAFFIC_API_URL") ?? "",
+  // "seeded" (the local catalogue), "overpass" (public OSM - unreliable, see
+  // providers/places/overpass.ts), or "geoapify" (paid API, free-tier key).
   PLACES_PROVIDER: Deno.env.get("PLACES_PROVIDER") ?? "seeded",
   PLACES_API_URL: Deno.env.get("PLACES_API_URL") ?? "https://overpass-api.de/api/interpreter",
+  PLACES_API_KEY: Deno.env.get("PLACES_API_KEY") ?? "",
   WEATHER_ENABLED: envBool("WEATHER_ENABLED", false),
   WEATHER_PROVIDER: Deno.env.get("WEATHER_PROVIDER") ?? "mock",
 

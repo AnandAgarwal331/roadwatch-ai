@@ -6,11 +6,15 @@ import { settings } from "../../_shared/config.ts";
 import type { NearbyPlacesProvider } from "./base.ts";
 import { SeededPlacesProvider } from "./seeded.ts";
 import { OverpassPlacesProvider } from "./overpass.ts";
+import { GeoapifyPlacesProvider } from "./geoapify.ts";
 
 export function getPlacesProvider(client: SupabaseClient): NearbyPlacesProvider {
   const provider = settings.PLACES_PROVIDER.trim().toLowerCase();
   if (provider === "overpass") {
     return new OverpassPlacesProvider(client, settings.PLACES_API_URL);
+  }
+  if (provider === "geoapify") {
+    return new GeoapifyPlacesProvider(client, settings.PLACES_API_KEY);
   }
   return new SeededPlacesProvider(client);
 }
