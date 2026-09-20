@@ -12,8 +12,9 @@ import { StatusTimeline } from "@/components/complaints/status-timeline";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReanalyzeButton } from "@/features/reports/reanalyze-button";
 import { DAMAGE_TYPE_LABELS, SEVERITY_DISCLAIMER } from "@/lib/constants";
-import { serverFetch } from "@/lib/session";
+import { getCurrentUser, serverFetch } from "@/lib/session";
 import { formatDateTime } from "@/lib/utils";
 import type { ComplaintDetail } from "@/types";
 
@@ -41,13 +42,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ReportDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const complaint = await serverFetch<ComplaintDetail>(`/api/complaints/${id}`);
+  const [complaint, user] = await Promise.all([
+    serverFetch<ComplaintDetail>(`/api/complaints/${id}`),
+    getCurrentUser(),
+  ]);
 
   if (!complaint) notFound();
 
   const analysis = complaint.latest_analysis;
   const photo = complaint.images.find((image) => image.kind === "REPORT") ?? complaint.images[0];
   const evidence = complaint.images.filter((image) => image.kind === "REPAIR_EVIDENCE");
+
+  // Mirrors the backend's own rule for POST /complaints/:id/analyze: only the
+  // reporter, and only before the report is closed (resolved/rejected/
+  // marked a duplicate) - an admin can still do this from their own console.
+  const isOwner = user !== null && complaint.reporter !== null && user.id === complaint.reporter.id;
+  const isClosed = complaint.status === "RESOLVED" || complaint.status === "REJECTED" || complaint.status === "DUPLICATE";
+  const canReanalyze = isOwner && !isClosed;
 
   return (
     <div className="container py-8 md:py-12">
@@ -58,26 +69,30 @@ export default async function ReportDetailPage({ params }: PageProps) {
         </Link>
       </Button>
 
-      <header className="mb-8">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm text-muted-foreground">
-            {complaint.complaint_number}
-          </span>
-          <StatusBadge status={complaint.status} />
-          <PriorityBadge level={complaint.priority_level} score={complaint.priority_score} />
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm text-muted-foreground">
+              {complaint.complaint_number}
+            </span>
+            <StatusBadge status={complaint.status} />
+            <PriorityBadge level={complaint.priority_level} score={complaint.priority_score} />
+          </div>
+
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+            {DAMAGE_TYPE_LABELS[complaint.damage_type]}
+            {complaint.road_name ? (
+              <span className="font-normal text-muted-foreground"> on {complaint.road_name}</span>
+            ) : null}
+          </h1>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            Reported {formatDateTime(complaint.created_at)}
+            {complaint.resolved_at ? ` · Resolved ${formatDateTime(complaint.resolved_at)}` : ""}
+          </p>
         </div>
 
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-          {DAMAGE_TYPE_LABELS[complaint.damage_type]}
-          {complaint.road_name ? (
-            <span className="font-normal text-muted-foreground"> on {complaint.road_name}</span>
-          ) : null}
-        </h1>
-
-        <p className="mt-2 text-sm text-muted-foreground">
-          Reported {formatDateTime(complaint.created_at)}
-          {complaint.resolved_at ? ` · Resolved ${formatDateTime(complaint.resolved_at)}` : ""}
-        </p>
+        {canReanalyze ? <ReanalyzeButton complaintId={complaint.id} /> : null}
       </header>
 
       {complaint.status === "REJECTED" && complaint.rejection_reason ? (
