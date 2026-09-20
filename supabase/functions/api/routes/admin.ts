@@ -26,6 +26,7 @@ import {
 import * as analytics from "../services/analytics.ts";
 import { DuplicateService } from "../services/duplicates.ts";
 import { listRecentAudit, recordAudit } from "../services/audit.ts";
+import { planUserUpdate } from "../services/users.ts";
 import {
   assignTeam,
   changeStatus,
@@ -363,6 +364,70 @@ admin.patch("/teams/:id", async (c) => {
     entityId: id,
     oldValue: before,
     newValue: changes,
+    ipAddress: clientIp(req),
+  });
+
+  return c.json(updated);
+});
+
+// -- users ------------------------------------------------------------------
+
+admin.get("/users", async (c) => {
+  await requireAdmin(c.req.raw);
+  const url = new URL(c.req.url);
+  const search = (url.searchParams.get("search") ?? "").trim().replace(/[%,()]/g, "");
+  const role = url.searchParams.get("role");
+  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? "100")));
+
+  let query = serviceClient()
+    .from("profiles")
+    .select("id, email, full_name, phone, role, is_active, team_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (role && ["CITIZEN", "ADMIN", "REPAIR_TEAM"].includes(role)) query = query.eq("role", role);
+  if (search) query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return c.json(data ?? []);
+});
+
+admin.patch("/users/:id", async (c) => {
+  const actor = await requireAdmin(c.req.raw);
+  const req = c.req.raw;
+  const client = serviceClient();
+
+  const { data: target, error: findErr } = await client
+    .from("profiles")
+    .select("id, email, role, team_id, is_active")
+    .eq("id", c.req.param("id"))
+    .maybeSingle();
+  if (findErr) throw findErr;
+  if (!target) throw new NotFoundError("That account does not exist.");
+
+  const body = await req.json().catch(() => ({}));
+  const teams = await listTeams(client);
+  const teamIds = new Set(teams.map((t) => t.id));
+  const changes = planUserUpdate(actor.id, target, body, (id) => teamIds.has(id));
+
+  const { data: updated, error } = await client
+    .from("profiles")
+    .update({ ...changes, updated_at: new Date().toISOString() })
+    .eq("id", target.id)
+    .select("id, email, full_name, phone, role, is_active, team_id, created_at")
+    .single();
+  if (error) throw error;
+
+  const before: Record<string, unknown> = {};
+  for (const key of Object.keys(changes)) before[key] = (target as Record<string, unknown>)[key];
+  await recordAudit(client, {
+    actor,
+    action: "user.updated",
+    entityType: "profile",
+    entityId: target.id,
+    oldValue: before,
+    newValue: changes as Record<string, unknown>,
+    note: target.email,
     ipAddress: clientIp(req),
   });
 

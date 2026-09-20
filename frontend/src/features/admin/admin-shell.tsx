@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ListChecks,
   ScrollText,
+  UserCog,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV: DashboardNavItem[] = [
   { href: "/admin/duplicates", label: "Duplicates", icon: Copy },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/teams", label: "Repair teams", icon: Users },
+  { href: "/admin/users", label: "Users", icon: UserCog },
   { href: "/admin/audit", label: "Audit trail", icon: ScrollText },
   { href: "/admin/settings", label: "Scoring settings", icon: SlidersHorizontal },
 ];
