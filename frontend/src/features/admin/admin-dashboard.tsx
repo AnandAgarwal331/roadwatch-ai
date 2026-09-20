@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Copy, Hammer, Inbox } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Hammer, Inbox } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -35,7 +35,7 @@ import {
   PRIORITY_ORDER,
   STATUS_LABELS,
 } from "@/lib/constants";
-import { formatDuration, formatRate, timeAgo } from "@/lib/utils";
+import { cn, formatDuration, formatRate, timeAgo } from "@/lib/utils";
 import type {
   ComplaintStatus,
   ComplaintSummary,
@@ -199,6 +199,7 @@ export function AdminDashboard() {
         </ChartCard>
 
         <ChartCard
+          className="[animation-delay:90ms]"
           title="Reports by status"
           description="Where everything currently sits in the lifecycle."
           table={{
@@ -248,6 +249,7 @@ export function AdminDashboard() {
           showScore
         />
         <QueueList
+          className="[animation-delay:90ms]"
           title="Just reported"
           description="The most recent submissions, whatever their score."
           reports={recent_reports}
@@ -264,16 +266,24 @@ function QueueList({
   description,
   reports,
   showScore,
+  className,
 }: {
   title: string;
   description: string;
   reports: ComplaintSummary[];
   showScore?: boolean;
+  className?: string;
 }) {
   const headingId = React.useId();
 
   return (
-    <section aria-labelledby={headingId} className="rounded-xl border border-border bg-card">
+    <section
+      aria-labelledby={headingId}
+      className={cn(
+        "animate-fade-up rounded-xl border border-border bg-card transition-shadow duration-200 hover:shadow-card-hover",
+        className,
+      )}
+    >
       <header className="border-b border-border p-4">
         <h2 id={headingId} className="text-sm font-semibold">
           {title}
@@ -286,10 +296,14 @@ function QueueList({
       ) : (
         <ul className="divide-y divide-border">
           {reports.map((report) => (
-            <li key={report.id}>
+            <li key={report.id} className="group relative">
+              <span
+                className="absolute inset-y-0 left-0 w-0.5 scale-y-0 bg-primary transition-transform duration-200 group-hover:scale-y-100"
+                aria-hidden="true"
+              />
               <Link
                 href={`/admin/reports/${report.id}`}
-                className="flex items-start gap-3 p-4 transition-colors hover:bg-muted/50 focus:bg-muted/50 focus:outline-none"
+                className="flex items-start gap-3 p-4 pl-[calc(1rem+2px)] transition-all duration-200 hover:translate-x-0.5 hover:bg-muted/50 focus:bg-muted/50 focus:outline-none"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -309,13 +323,19 @@ function QueueList({
                   </p>
                 </div>
 
-                <div className="shrink-0 text-right">
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {report.complaint_number}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {timeAgo(report.created_at)}
-                  </p>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="text-right">
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      {report.complaint_number}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {timeAgo(report.created_at)}
+                    </p>
+                  </div>
+                  <ChevronRight
+                    className="h-4 w-4 -translate-x-1 text-muted-foreground opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
+                    aria-hidden="true"
+                  />
                 </div>
               </Link>
             </li>

@@ -254,7 +254,10 @@ export function ChartCard<T>({
   return (
     <figure
       aria-labelledby={headingId}
-      className={cn("rounded-xl border border-border bg-card p-4 shadow-card sm:p-5", className)}
+      className={cn(
+        "animate-fade-up rounded-xl border border-border bg-card p-4 shadow-card transition-shadow duration-200 hover:shadow-card-hover sm:p-5",
+        className,
+      )}
     >
       <figcaption className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">

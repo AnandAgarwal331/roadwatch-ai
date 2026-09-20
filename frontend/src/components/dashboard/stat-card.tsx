@@ -58,7 +58,13 @@ export function StatCard({
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         {Icon ? (
-          <span className={cn("rounded-md p-1.5", tones.icon)}>
+          <span
+            className={cn(
+              "rounded-md p-1.5 transition-transform duration-200",
+              href && "group-hover:scale-110 group-hover:rotate-3",
+              tones.icon,
+            )}
+          >
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
         ) : null}
@@ -73,8 +79,11 @@ export function StatCard({
   );
 
   const shared = cn(
-    "rounded-xl border border-border bg-card p-4 shadow-card",
-    href && "transition-shadow hover:shadow-card-hover focus-visible:shadow-card-hover",
+    "rounded-xl border border-border bg-card p-4 shadow-card transition-all duration-200",
+    href && [
+      "group hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border/60",
+      "focus-visible:-translate-y-0.5 focus-visible:shadow-card-hover",
+    ],
     className,
   );
 
@@ -83,11 +92,17 @@ export function StatCard({
       {body}
     </Link>
   ) : (
-    <div className={shared}>{body}</div>
+    <div className={cn(shared, "hover:shadow-card-hover")}>{body}</div>
   );
 }
 
-/** A row of headline numbers. Never a grouped bar chart. */
+/**
+ * A row of headline numbers. Never a grouped bar chart.
+ *
+ * Each tile fades up on mount, staggered left to right - reduced-motion
+ * visitors get the plain, instant layout (see globals.css's blanket
+ * `prefers-reduced-motion` override).
+ */
 export function StatGrid({
   children,
   className,
@@ -96,6 +111,12 @@ export function StatGrid({
   className?: string;
 }) {
   return (
-    <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>{children}</div>
+    <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>
+      {React.Children.map(children, (child, index) => (
+        <div className="animate-fade-up" style={{ animationDelay: `${index * 60}ms` }}>
+          {child}
+        </div>
+      ))}
+    </div>
   );
 }
