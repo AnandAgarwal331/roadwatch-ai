@@ -7,6 +7,7 @@ import * as React from "react";
 
 import { Logo } from "@/components/layout/logo";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,8 @@ export function SiteHeader({ user }: { user: User | null }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
+
           {user ? (
             <>
               <NotificationBell />

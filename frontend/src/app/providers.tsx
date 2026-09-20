@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import * as React from "react";
 
 import { ToastProvider } from "@/components/ui/toast";
@@ -32,10 +33,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={200}>
-        <ToastProvider>{children}</ToastProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    // attribute="class" matches tailwind.config.ts's darkMode: ["class"] -
+    // the .dark CSS block in globals.css and useIsDark() in chart-kit.tsx
+    // were already built for this and had nothing turning them on until now.
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={200}>
+          <ToastProvider>{children}</ToastProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
