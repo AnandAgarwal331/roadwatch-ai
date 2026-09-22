@@ -78,12 +78,21 @@ export async function complaintSubmitted(client: SupabaseClient, complaint: Comp
   });
 }
 
-export async function complaintAssigned(client: SupabaseClient, complaint: ComplaintRow, teamId: string, teamName: string): Promise<void> {
+export async function complaintAssigned(
+  client: SupabaseClient,
+  complaint: ComplaintRow,
+  assignmentId: string,
+  teamId: string,
+  teamName: string,
+): Promise<void> {
   await notifyTeam(client, teamId, {
     event: "assignment.created",
     title: `New ${String(complaint.priority_level).toLowerCase()} priority repair assigned`,
     body: `${complaint.complaint_number} (${label(String(complaint.damage_type))}) has been assigned to your team.`,
-    link: `/team/tasks/${complaint.id}`,
+    // The crew's job page is keyed by the assignment's own id, not the
+    // complaint's - the two are different rows, and a link built from the
+    // wrong one 404s the moment it's clicked.
+    link: `/team/tasks/${assignmentId}`,
     complaintId: complaint.id,
   });
   await notifyUserId(client, complaint.reporter_id, {
@@ -119,11 +128,65 @@ export async function complaintResolved(client: SupabaseClient, complaint: Compl
   });
 }
 
+export async function complaintDeleted(client: SupabaseClient, complaint: ComplaintRow, reason: string): Promise<void> {
+  await notifyUserId(client, complaint.reporter_id, {
+    event: "complaint.deleted",
+    title: "Your report was removed",
+    body: `${complaint.complaint_number} was removed by an administrator: ${reason}`,
+    complaintId: complaint.id,
+  });
+}
+
 export async function repairCompleted(client: SupabaseClient, complaint: ComplaintRow, teamName: string): Promise<void> {
   await notifyRole(client, "ADMIN", {
     event: "repair.completed",
     title: "Repair awaiting verification",
     body: `${teamName} marked ${complaint.complaint_number} complete and uploaded evidence. Please verify.`,
+    link: `/admin/reports/${complaint.id}`,
+    complaintId: complaint.id,
+  });
+}
+
+export async function reworkRequested(
+  client: SupabaseClient,
+  complaint: ComplaintRow,
+  assignmentId: string,
+  teamId: string,
+  reason: string,
+): Promise<void> {
+  await notifyTeam(client, teamId, {
+    event: "repair.rework_requested",
+    title: "Rework requested",
+    body: `The works department sent ${complaint.complaint_number} back: ${reason}`,
+    link: `/team/tasks/${assignmentId}`,
+    complaintId: complaint.id,
+  });
+}
+
+export async function repairFlagged(
+  client: SupabaseClient,
+  complaint: ComplaintRow,
+  teamName: string,
+  reason: string,
+): Promise<void> {
+  await notifyRole(client, "ADMIN", {
+    event: "repair.flagged",
+    title: "Crew flagged a problem with an assignment",
+    body: `${teamName} could not proceed with ${complaint.complaint_number}: ${reason}. It is back in the queue, unassigned.`,
+    link: `/admin/reports/${complaint.id}`,
+    complaintId: complaint.id,
+  });
+}
+
+export async function assignmentEscalated(
+  client: SupabaseClient,
+  complaint: ComplaintRow,
+  reason: string,
+): Promise<void> {
+  await notifyRole(client, "ADMIN", {
+    event: "repair.escalated",
+    title: "🚨 Crew escalated a report as an emergency",
+    body: `${complaint.complaint_number}: ${reason}`,
     link: `/admin/reports/${complaint.id}`,
     complaintId: complaint.id,
   });

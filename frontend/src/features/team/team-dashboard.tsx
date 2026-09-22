@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ClipboardList } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, MapPin, Siren } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -11,6 +11,7 @@ import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/shared/st
 import { Button } from "@/components/ui/button";
 import { api, errorMessage } from "@/lib/api";
 import { TaskCard } from "@/features/team/task-card";
+import { formatDuration, formatRate } from "@/lib/utils";
 import type { Task, TeamDashboard as TeamDashboardData } from "@/types";
 
 export function TeamDashboard() {
@@ -53,19 +54,33 @@ export function TeamDashboard() {
             : `Up to ${stats.capacity} jobs at a time.`
         }
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/team/tasks">All jobs</Link>
-          </Button>
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/team/map">
+                <MapPin aria-hidden="true" />
+                Map
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/team/tasks">All jobs</Link>
+            </Button>
+          </>
         }
       />
 
-      <StatGrid className="mb-8">
+      <StatGrid className="mb-8 lg:grid-cols-5">
         <StatCard label="Open jobs" value={stats.open_jobs} icon={ClipboardList} />
         <StatCard
           label="Critical open"
           value={stats.critical_open}
           icon={AlertTriangle}
           tone={stats.critical_open > 0 ? "critical" : "default"}
+        />
+        <StatCard
+          label="Emergency"
+          value={stats.emergency_open}
+          icon={Siren}
+          tone={stats.emergency_open > 0 ? "critical" : "default"}
         />
         <StatCard
           label="Overdue"
@@ -78,6 +93,15 @@ export function TeamDashboard() {
           value={stats.completed_total}
           icon={CheckCircle2}
           tone="success"
+        />
+      </StatGrid>
+
+      <StatGrid className="mb-8 lg:grid-cols-2">
+        <StatCard label="Average time per job" value={formatDuration(stats.average_completion_hours)} />
+        <StatCard
+          label="Completion rate"
+          value={formatRate(stats.completion_rate)}
+          hint="Of everything ever assigned to your crew"
         />
       </StatGrid>
 

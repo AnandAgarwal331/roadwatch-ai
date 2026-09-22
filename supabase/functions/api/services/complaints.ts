@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConflictError, InvalidStatusTransitionError, NotFoundError, ValidationError } from "../_shared/errors.ts";
 import { serviceClient, userClient } from "../_shared/supabase.ts";
-import { STATUS_TRANSITIONS, type ComplaintStatus, type PriorityLevel } from "../_shared/enums.ts";
+import { CLOSED_STATUSES, STATUS_TRANSITIONS, type ComplaintStatus, type PriorityLevel } from "../_shared/enums.ts";
 import type { AuthedProfile } from "../_shared/auth.ts";
 import { thresholdsFromSettings } from "./priority.ts";
 import { isValidCoordinate } from "./geo.ts";
@@ -24,6 +24,7 @@ import {
   teamWorkload,
   updateAssignment,
   type RepairAssignmentRow,
+  type RepairDetails,
 } from "../repositories/repair.ts";
 
 export interface CreateComplaintInput {
@@ -300,7 +301,8 @@ function levelForScore(score: number): PriorityLevel {
   return "LOW";
 }
 
-const SLA_HOURS: Record<PriorityLevel, number> = { CRITICAL: 24, HIGH: 72, MEDIUM: 168, LOW: 336 };
+/** The due-by window a new assignment gets, by priority - also what "overdue" is measured against. Shown to admins in /admin/settings. */
+export const SLA_HOURS: Record<PriorityLevel, number> = { CRITICAL: 24, HIGH: 72, MEDIUM: 168, LOW: 336 };
 
 async function recordStatus(
   client: SupabaseClient,
@@ -377,6 +379,53 @@ export async function rejectComplaint(complaint: ComplaintRow, reason: string, a
   if (error) throw error;
 
   return changeStatus({ ...complaint, rejection_reason: trimmed }, "REJECTED", actor, trimmed);
+}
+
+/**
+ * An administrator's own delete - unlike `delete_own_complaint` (the citizen
+ * RPC), this works on a report in any state and doesn't erase it: `deleted_at`
+ * is set, the same soft delete every other listing, the map and duplicate
+ * matching already filter on, so the row and its history remain for an audit
+ * even though nothing else shows it again. Recovering one needs a database
+ * operator, the same as the citizen path.
+ */
+export async function deleteComplaint(complaint: ComplaintRow, reason: string, actor: AuthedProfile): Promise<void> {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new ValidationError("Please give a reason for deleting this report.");
+  if (complaint.deleted_at) throw new ConflictError("This report has already been deleted.");
+
+  const client = serviceClient();
+  const now = new Date().toISOString();
+
+  const [, activeAssignment] = await Promise.all([
+    client.from("complaints").update({ deleted_at: now }).eq("id", complaint.id),
+    activeAssignmentForComplaint(client, complaint.id),
+  ]);
+
+  const sideEffects: PromiseLike<unknown>[] = [
+    recordAudit(client, {
+      actor,
+      action: "complaint.deleted",
+      entityType: "complaint",
+      entityId: complaint.id,
+      complaintId: complaint.id,
+      oldValue: { status: complaint.status },
+      note: trimmed,
+    }),
+    notifications.complaintDeleted(client, complaint, trimmed),
+  ];
+  // A crew still has this open would otherwise keep working a report nobody
+  // else can even see any more - same reasoning as assignTeam cancelling a
+  // superseded assignment on reassignment.
+  if (activeAssignment && activeAssignment.status !== "VERIFIED") {
+    sideEffects.push(
+      updateAssignment(client, activeAssignment.id, {
+        status: "CANCELLED",
+        notes: `Report deleted by an administrator: ${trimmed}`,
+      }),
+    );
+  }
+  await Promise.all(sideEffects);
 }
 
 export async function overridePriority(
@@ -471,7 +520,7 @@ export async function assignTeam(
       newValue: { team_id: team.id, team_name: team.name },
       note,
     }),
-    notifications.complaintAssigned(client, updatedComplaint, team.id, team.name as string),
+    notifications.complaintAssigned(client, updatedComplaint, assignment.id, team.id, team.name as string),
   ];
   if (complaint.status !== "ASSIGNED") {
     sideEffects.push(client.from("complaints").update({ status: "ASSIGNED" }).eq("id", complaint.id));
@@ -515,6 +564,7 @@ export async function completeRepair(
   note: string | null,
   evidenceFiles: EvidenceFile[],
   hadExistingEvidence: boolean,
+  repairDetails: RepairDetails | null = null,
 ): Promise<RepairAssignmentRow> {
   if (assignment.status === "VERIFIED") throw new ConflictError("This job has already been verified.");
   if (!["ASSIGNED", "IN_PROGRESS"].includes(assignment.status)) {
@@ -552,6 +602,7 @@ export async function completeRepair(
   const patch: Record<string, unknown> = { status: "COMPLETED", completed_at: now };
   if (!assignment.started_at) patch.started_at = now;
   if (note) patch.notes = note;
+  if (repairDetails) patch.repair_details = repairDetails;
   const updated = await updateAssignment(client, assignment.id, patch);
 
   const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
@@ -622,6 +673,176 @@ export async function verifyRepair(assignment: RepairAssignmentRow, actor: Authe
       note,
     }),
     notifications.complaintResolved(client, complaint),
+  ]);
+
+  return updated;
+}
+
+/**
+ * A supervisor sends a completed-but-unverified repair back to the crew,
+ * with a reason - the "reject and rework" half of verification, alongside
+ * `verifyRepair`'s "approve" half. Reopens the job (status back to
+ * IN_PROGRESS, `completed_at` cleared) rather than leaving it COMPLETED, so
+ * it shows up in the crew's open work again, and clears any evidence from
+ * the rejected attempt so what remains on the job is only the next one's.
+ */
+export async function rejectRepair(
+  assignment: RepairAssignmentRow,
+  actor: AuthedProfile,
+  reason: string,
+): Promise<RepairAssignmentRow> {
+  if (assignment.status !== "COMPLETED") {
+    throw new ConflictError("Only a job the crew has marked complete can be sent back for rework.", {
+      status: assignment.status,
+    });
+  }
+
+  const client = serviceClient();
+  const now = new Date().toISOString();
+
+  const [updated] = await Promise.all([
+    updateAssignment(client, assignment.id, {
+      status: "IN_PROGRESS",
+      completed_at: null,
+      rework_count: (assignment.rework_count ?? 0) + 1,
+      rework_reason: reason,
+      reworked_at: now,
+    }),
+    // The rejected attempt's evidence and repair details belong to a repair
+    // that is being redone, not the one the crew is about to submit - left in
+    // place they would be indistinguishable from the next submission's.
+    client.from("repair_evidence").delete().eq("assignment_id", assignment.id),
+  ]);
+
+  const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
+
+  await Promise.all([
+    recordAudit(client, {
+      actor,
+      action: "repair.rework_requested",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: assignment.complaint_id,
+      oldValue: { status: "COMPLETED" },
+      newValue: { status: "IN_PROGRESS" },
+      note: reason,
+    }),
+    notifications.reworkRequested(
+      client,
+      complaint ?? { id: assignment.complaint_id, complaint_number: "" },
+      assignment.id,
+      assignment.team_id,
+      reason,
+    ),
+  ]);
+
+  return updated;
+}
+
+/**
+ * The crew's own "something is wrong with this job" report - before or
+ * during work, not after. Ends the assignment (freeing the crew's capacity,
+ * same as a reassignment does) and hands the report back to the admin queue
+ * unassigned rather than leaving it silently stuck at ASSIGNED/IN_PROGRESS
+ * with nobody working it.
+ */
+export async function flagAssignment(
+  assignment: RepairAssignmentRow,
+  actor: AuthedProfile,
+  reason: string,
+): Promise<RepairAssignmentRow> {
+  if (!["ASSIGNED", "IN_PROGRESS"].includes(assignment.status)) {
+    throw new ConflictError(`This job is ${readableStatus(assignment.status)} and cannot be flagged.`);
+  }
+
+  const client = serviceClient();
+  const now = new Date().toISOString();
+
+  const updated = await updateAssignment(client, assignment.id, {
+    status: "CANCELLED",
+    flag_reason: reason,
+    flagged_at: now,
+    flagged_by_id: actor.id,
+  });
+
+  const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
+  const teamName = (assignment as any).team?.name ?? "The crew";
+
+  const sideEffects: PromiseLike<unknown>[] = [
+    recordAudit(client, {
+      actor,
+      action: "repair.flagged",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: assignment.complaint_id,
+      oldValue: { status: assignment.status },
+      newValue: { status: "CANCELLED" },
+      note: reason,
+    }),
+  ];
+  if (complaint) {
+    sideEffects.push(
+      notifications.repairFlagged(client, complaint, teamName, reason),
+    );
+    // Back to PRIORITIZED (scored, but nobody's working it) rather than left
+    // at ASSIGNED/IN_PROGRESS, which would read as "a crew has this in hand".
+    if (!(CLOSED_STATUSES as string[]).includes(complaint.status)) {
+      sideEffects.push(client.from("complaints").update({ status: "PRIORITIZED" }).eq("id", assignment.complaint_id));
+      sideEffects.push(
+        recordStatus(client, assignment.complaint_id, complaint.status, "PRIORITIZED", actor.id, `Crew flagged a problem: ${reason}`),
+      );
+    }
+  }
+  await Promise.all(sideEffects);
+
+  return updated;
+}
+
+/**
+ * A crew's own "this needs attention now" signal, distinct from the AI's own
+ * priority score: it raises the report to the top of every admin's queue
+ * (via the same manual-override path an admin uses) and notifies them
+ * immediately, for a hazard the crew has seen with their own eyes that the
+ * score alone might not reflect - a road that has since collapsed further,
+ * an exposed manhole, and so on.
+ */
+export async function escalateAssignment(
+  assignment: RepairAssignmentRow,
+  actor: AuthedProfile,
+  reason: string,
+): Promise<RepairAssignmentRow> {
+  if (!["ASSIGNED", "IN_PROGRESS"].includes(assignment.status)) {
+    throw new ConflictError(`This job is ${readableStatus(assignment.status)} and cannot be escalated.`);
+  }
+  if (assignment.is_emergency) return assignment;
+
+  const client = serviceClient();
+  const now = new Date().toISOString();
+
+  const complaint = (assignment as any).complaint ?? (await getComplaintById(client, assignment.complaint_id));
+
+  const [updated] = await Promise.all([
+    updateAssignment(client, assignment.id, {
+      is_emergency: true,
+      emergency_reason: reason,
+      escalated_at: now,
+      escalated_by_id: actor.id,
+    }),
+    complaint ? overridePriority(complaint, 100, actor, `Escalated as an emergency by the crew: ${reason}`) : null,
+    notifications.assignmentEscalated(
+      client,
+      complaint ?? { id: assignment.complaint_id, complaint_number: "" },
+      reason,
+    ),
+    recordAudit(client, {
+      actor,
+      action: "repair.escalated",
+      entityType: "repair_assignment",
+      entityId: assignment.id,
+      complaintId: assignment.complaint_id,
+      newValue: { is_emergency: true },
+      note: reason,
+    }),
   ]);
 
   return updated;

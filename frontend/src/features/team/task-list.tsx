@@ -19,6 +19,7 @@ const TABS: { value: string; label: string; statuses?: AssignmentStatus[] }[] = 
   { value: "IN_PROGRESS", label: ASSIGNMENT_STATUS_LABELS.IN_PROGRESS, statuses: ["IN_PROGRESS"] },
   { value: "COMPLETED", label: ASSIGNMENT_STATUS_LABELS.COMPLETED, statuses: ["COMPLETED"] },
   { value: "VERIFIED", label: ASSIGNMENT_STATUS_LABELS.VERIFIED, statuses: ["VERIFIED"] },
+  { value: "CANCELLED", label: ASSIGNMENT_STATUS_LABELS.CANCELLED, statuses: ["CANCELLED"] },
   { value: "all", label: "All" },
 ];
 

@@ -14,6 +14,16 @@ export interface RepairTeamRow {
   [key: string]: unknown;
 }
 
+export interface RepairDetails {
+  repair_type?: string | null;
+  materials?: string | null;
+  quantity?: string | null;
+  equipment?: string | null;
+  workers_count?: number | null;
+  cost_amount?: number | null;
+  notes?: string | null;
+}
+
 export interface RepairAssignmentRow {
   id: string;
   complaint_id: string;
@@ -23,6 +33,15 @@ export interface RepairAssignmentRow {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  repair_details: RepairDetails | null;
+  rework_count: number;
+  rework_reason: string | null;
+  reworked_at: string | null;
+  flag_reason: string | null;
+  flagged_at: string | null;
+  is_emergency: boolean;
+  emergency_reason: string | null;
+  escalated_at: string | null;
   [key: string]: unknown;
 }
 
@@ -72,6 +91,38 @@ export async function workloadByTeam(client: SupabaseClient): Promise<Record<str
   return counts;
 }
 
+/**
+ * Every complaint with a repair a team has marked done but an admin has not
+ * yet verified - the queue behind "Awaiting verification" in the admin
+ * report list (see `ComplaintFilters.awaitingVerification` in
+ * `repositories/complaint.ts`). The matching headline count is computed in
+ * SQL instead, by `kpi_summary()`.
+ */
+export async function complaintIdsAwaitingVerification(client: SupabaseClient): Promise<string[]> {
+  const { data, error } = await client.from("repair_assignments").select("complaint_id").eq("status", "COMPLETED");
+  if (error) throw error;
+  return (data ?? []).map((row) => row.complaint_id);
+}
+
+/**
+ * Every complaint whose active repair has passed its due date - the "SLA
+ * missed" queue behind the admin report list's "Overdue" filter and the
+ * `overdue` kpi_summary() count. `due_at` is set once, when a team is
+ * assigned (see `SLA_HOURS` in services/complaints.ts), so this only needs
+ * to compare it against now - the same definition `is_overdue` already uses
+ * per-job in `toTask`.
+ */
+export async function complaintIdsOverdue(client: SupabaseClient): Promise<string[]> {
+  const { data, error } = await client
+    .from("repair_assignments")
+    .select("complaint_id")
+    .in("status", ["ASSIGNED", "IN_PROGRESS"])
+    .not("due_at", "is", null)
+    .lt("due_at", new Date().toISOString());
+  if (error) throw error;
+  return (data ?? []).map((row) => row.complaint_id);
+}
+
 export async function completedCount(client: SupabaseClient, teamId: string): Promise<number> {
   const { count, error } = await client
     .from("repair_assignments")
@@ -84,9 +135,16 @@ export async function completedCount(client: SupabaseClient, teamId: string): Pr
 
 // -- assignments --------------------------------------------------------
 
+// The nested complaint carries everything the AI priority explanation (the
+// "why" behind the score, not just the number) and the on-site context
+// (traffic, nearby hospital/school) need - the same data admin's toDetail()
+// shows, minus the two things a crew has no reason to see: the reporter's
+// identity, and this same assignment nested back inside itself.
 const ASSIGNMENT_DETAIL_SELECT =
   "*, evidence:repair_evidence(*), team:repair_teams(*), " +
-  "complaint:complaints(*, images:complaint_images(*), location:locations(*))";
+  "complaint:complaints(*, images:complaint_images(*), location:locations(*), " +
+  "nearby_places(*), traffic_snapshots(*), " +
+  "assessments:priority_assessments(*), analyses:ai_analyses(*, detections:ai_detections(*)))";
 
 export async function getAssignmentFull(client: SupabaseClient, assignmentId: string): Promise<RepairAssignmentRow | null> {
   const { data, error } = await client.from("repair_assignments").select(ASSIGNMENT_DETAIL_SELECT).eq("id", assignmentId).maybeSingle();

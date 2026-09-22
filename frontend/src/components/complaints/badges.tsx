@@ -15,6 +15,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import {
+  ASSIGNMENT_STATUS_LABELS,
+  ASSIGNMENT_STATUS_STYLES,
   DAMAGE_TYPE_LABELS,
   PLACE_TYPE_LABELS,
   PRIORITY_LABELS,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type {
+  AssignmentStatus,
   ComplaintStatus,
   DamageType,
   PlaceType,
@@ -66,6 +69,37 @@ export function StatusBadge({
       )}
     >
       {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+/**
+ * A repair's own status, distinct from the report's `StatusBadge`: a report
+ * stays "In progress" for the whole repair, so this is what actually tells an
+ * admin a crew has finished and it is their turn - `COMPLETED` reads as
+ * "Awaiting verification" (see ASSIGNMENT_STATUS_LABELS).
+ *
+ * Named distinctly from `features/team/task-card.tsx`'s own
+ * `AssignmentStatusBadge` (which takes a whole `Task`, not a bare status) -
+ * two exports sharing a name across the codebase is exactly the kind of thing
+ * that gets the wrong one imported by mistake.
+ */
+export function RepairStatusBadge({
+  status,
+  className,
+}: {
+  status: AssignmentStatus;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        ASSIGNMENT_STATUS_STYLES[status],
+        className,
+      )}
+    >
+      {ASSIGNMENT_STATUS_LABELS[status]}
     </span>
   );
 }

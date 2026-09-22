@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, MapPin } from "lucide-react";
+import { AlertTriangle, Clock, MapPin, RotateCcw, Siren } from "lucide-react";
 import Link from "next/link";
 
 import { DamageTypeBadge, PriorityBadge } from "@/components/complaints/badges";
@@ -33,6 +33,18 @@ export function TaskCard({ task, className }: { task: Task; className?: string }
           <PriorityBadge level={complaint.priority_level} score={complaint.priority_score} />
           <DamageTypeBadge type={complaint.damage_type} />
           <AssignmentStatusBadge task={task} />
+          {task.is_emergency ? (
+            <Badge variant="destructive">
+              <Siren className="h-3 w-3" aria-hidden="true" />
+              Emergency
+            </Badge>
+          ) : null}
+          {task.status === "IN_PROGRESS" && task.rework_count > 0 ? (
+            <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+              <RotateCcw className="h-3 w-3" aria-hidden="true" />
+              Rework
+            </Badge>
+          ) : null}
           {task.is_overdue ? (
             <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
               <AlertTriangle className="h-3 w-3" aria-hidden="true" />

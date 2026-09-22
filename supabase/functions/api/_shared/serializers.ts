@@ -98,7 +98,7 @@ export function toPriorityResponse(complaint: any): Record<string, unknown> | nu
 const OPEN_ASSIGNMENT_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS", "COMPLETED"]);
 
 // deno-lint-ignore no-explicit-any
-function activeAssignment(assignments: any[] | null | undefined): Record<string, unknown> | null {
+export function activeAssignment(assignments: any[] | null | undefined): Record<string, unknown> | null {
   const ordered = byCreatedAtAsc(assignments ?? []);
   for (let i = ordered.length - 1; i >= 0; i--) {
     if (OPEN_ASSIGNMENT_STATUSES.has(ordered[i].status)) return ordered[i];
@@ -193,6 +193,34 @@ export function toTask(assignment: any): Record<string, unknown> {
     complaint: toSummary(assignment.complaint),
     evidence: assignment.evidence ?? [],
     is_overdue: overdue,
+    repair_details: assignment.repair_details ?? null,
+    // Cheap enough to carry on every list row (no extra query), which is what
+    // lets a "rework requested" or "emergency" badge show up in a job list,
+    // not only once you open the one job.
+    rework_count: assignment.rework_count ?? 0,
+    rework_reason: assignment.rework_reason ?? null,
+    reworked_at: assignment.reworked_at ?? null,
+    flag_reason: assignment.flag_reason ?? null,
+    flagged_at: assignment.flagged_at ?? null,
+    is_emergency: Boolean(assignment.is_emergency),
+    emergency_reason: assignment.emergency_reason ?? null,
+    escalated_at: assignment.escalated_at ?? null,
+  };
+}
+
+/**
+ * A single job with the full AI picture behind its priority score - severity
+ * factors, traffic, nearby hospital/school, previous reports - instead of
+ * just the number. Used for `GET /team/tasks/:id`, where a crew member is
+ * deciding whether and how to act on one specific job; the list views
+ * (`toTask` above) stay lean since a list of many jobs would multiply that
+ * cost by every row.
+ */
+// deno-lint-ignore no-explicit-any
+export function toTaskDetail(assignment: any): Record<string, unknown> {
+  return {
+    ...toTask(assignment),
+    complaint: toDetail(assignment.complaint, { includeReporter: false }),
   };
 }
 

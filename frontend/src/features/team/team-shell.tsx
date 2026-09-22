@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, LayoutDashboard } from "lucide-react";
+import { ClipboardList, LayoutDashboard, MapPin } from "lucide-react";
 
 import { DashboardShell, type DashboardNavItem } from "@/components/dashboard/dashboard-shell";
 import type { User } from "@/types";
@@ -9,6 +9,7 @@ import type { User } from "@/types";
 const NAV: DashboardNavItem[] = [
   { href: "/team", label: "Today", icon: LayoutDashboard, exact: true },
   { href: "/team/tasks", label: "All jobs", icon: ClipboardList },
+  { href: "/team/map", label: "Map", icon: MapPin },
 ];
 
 export function TeamShell({ user, children }: { user: User; children: React.ReactNode }) {
