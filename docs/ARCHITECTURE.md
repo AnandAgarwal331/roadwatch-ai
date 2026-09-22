@@ -182,10 +182,10 @@ same pattern before and after the migration:
 | Provider | Options |
 |---|---|
 | AI | `mock`, `http` (the optional standalone inference service), `qwen` (Qwen-VL via an OpenAI-compatible API; approximate boxes, self-reported confidence - measure before trusting) |
-| Traffic | `mock`, `http` |
+| Traffic | `mock`, `http` (a real traffic API in TomTom's Flow Segment Data shape - needs a key) |
 | Places | `seeded`, `overpass` (public OpenStreetMap, blocks automated traffic in practice), `geoapify` (real data, free-tier API key) |
 | Storage | Supabase Storage only (`complaint-photos` public bucket, `repair-evidence` private bucket) |
-| Weather | `mock` (off by default) |
+| Weather | `mock`, `open-meteo` (real forecasts, free and keyless - see providers/weather/open-meteo.ts); off by default either way |
 
 This is what lets a deployment start on mocks and adopt real sources one at a
 time. The mock traffic and weather providers are deterministic via SHA-256

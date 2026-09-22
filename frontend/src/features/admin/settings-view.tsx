@@ -197,7 +197,7 @@ export function SettingsView() {
               <Provider label="Storage" value={settings.storage_provider} />
               <Provider
                 label="Weather"
-                value={settings.weather_enabled ? "Enabled" : "Disabled"}
+                value={settings.weather_enabled ? settings.weather_provider : "Disabled"}
               />
               <Row
                 label="Minimum AI confidence"

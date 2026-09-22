@@ -179,6 +179,7 @@ admin.get("/settings", async (c) => {
     places_provider: settings.PLACES_PROVIDER,
     storage_provider: "supabase",
     weather_enabled: settings.WEATHER_ENABLED,
+    weather_provider: settings.WEATHER_PROVIDER,
     max_upload_mb: Math.round((settings.MAX_UPLOAD_BYTES / (1024 * 1024)) * 10) / 10,
     engine_version: ENGINE_VERSION,
   });

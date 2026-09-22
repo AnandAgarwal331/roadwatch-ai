@@ -480,6 +480,7 @@ export interface SystemSettings {
   places_provider: string;
   storage_provider: string;
   weather_enabled: boolean;
+  weather_provider: string;
   max_upload_mb: number;
   engine_version: string;
 }

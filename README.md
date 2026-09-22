@@ -113,9 +113,10 @@ every key and its default). The values that matter most:
 | Variable | Default | Notes |
 |---|---|---|
 | `AI_PROVIDER` | `mock` | `http` for the inference service (`AI_SERVICE_URL`), or `qwen` for a Qwen-VL model through any OpenAI-compatible API (needs `AI_API_KEY`; `AI_MODEL` and `AI_BASE_URL` pick the model and host - defaults are Alibaba Cloud Model Studio; `AI_EXTRA_PARAMS` is an optional JSON object of host-specific request fields. Groq: `AI_BASE_URL=https://api.groq.com/openai/v1`, `AI_MODEL=qwen/qwen3.8-27b`, `AI_EXTRA_PARAMS={"reasoning_effort":"none"}`) |
-| `TRAFFIC_PROVIDER` | `mock` | |
+| `TRAFFIC_PROVIDER` | `mock` | `http` for a real traffic API in TomTom's Flow Segment Data shape (needs `TRAFFIC_API_URL` and `TRAFFIC_API_KEY` - TomTom's own API matches this shape directly and has a free tier) |
 | `PLACES_PROVIDER` | `seeded` | `overpass` for public OpenStreetMap data (unreliable - see the provider's own comment), `geoapify` for a real, paid-but-free-tier places API (needs `PLACES_API_KEY`) |
 | `WEATHER_ENABLED` | `false` | |
+| `WEATHER_PROVIDER` | `mock` | `open-meteo` for real forecasts via [Open-Meteo](https://open-meteo.com) - free for non-commercial use, no signup or API key needed |
 | `PRIORITY_WEIGHT_*` | 4.0 / 2.5 / 2.0 / 1.5 | Severity, traffic, location, history |
 | `PRIORITY_THRESHOLD_*` | 40 / 70 / 85 | Medium, high, critical bands |
 | `RATE_LIMIT_*` | see config.ts | Backed by a `rate_limit_counters` table, not in-memory |
