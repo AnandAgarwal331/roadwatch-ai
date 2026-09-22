@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ASSIGNMENT_FLAG_REASONS,
   ASSIGNMENT_STATUS_LABELS,
   ASSIGNMENT_STATUS_STYLES,
   CHART_COLORS,
+  EMERGENCY_REASONS,
   CHART_COLORS_DARK,
   DAMAGE_TYPE_LABELS,
   PRIORITY_HEX,
@@ -75,6 +77,21 @@ describe("domain vocabulary is complete", () => {
       expect(ASSIGNMENT_STATUS_LABELS[status], status).toBeTruthy();
       expect(ASSIGNMENT_STATUS_STYLES[status], status).toBeTruthy();
     }
+  });
+
+  it.each([
+    ["ASSIGNMENT_FLAG_REASONS", ASSIGNMENT_FLAG_REASONS],
+    ["EMERGENCY_REASONS", EMERGENCY_REASONS],
+  ])("%s has no blank or duplicate entries, and ends with a catch-all", (_name, reasons) => {
+    const values = reasons.map((r) => r.value);
+    expect(values.length).toBeGreaterThan(0);
+    expect(new Set(values).size).toBe(values.length);
+    for (const reason of reasons) {
+      expect(reason.value.trim()).toBe(reason.value);
+      expect(reason.value).not.toBe("");
+      expect(reason.label).not.toBe("");
+    }
+    expect(reasons.at(-1)?.value).toBe("Other");
   });
 
   it("labels and colours every priority level", () => {

@@ -12,6 +12,7 @@ import { DetailsStep, type DetailsValue } from "@/features/report/details-step";
 import { LocationStep, type LocationValue } from "@/features/report/location-step";
 import { PhotoStep, type PhotoValue } from "@/features/report/photo-step";
 import { ApiError, apiRequest, errorMessage } from "@/lib/api";
+import { shrinkForUpload } from "@/lib/shrink-image";
 import { cn } from "@/lib/utils";
 import type { ComplaintCreateResponse } from "@/types";
 
@@ -57,7 +58,10 @@ export function ReportWizard() {
       if (details.description.trim()) form.append("description", details.description.trim());
       if (details.roadName.trim()) form.append("road_name", details.roadName.trim());
       if (details.damageType) form.append("reported_damage_type", details.damageType);
-      if (photo) form.append("photo", photo.file, photo.file.name);
+      if (photo) {
+        const upload = await shrinkForUpload(photo.file);
+        form.append("photo", upload, upload.name);
+      }
 
       return apiRequest<ComplaintCreateResponse>("/complaints", { method: "POST", body: form });
     },

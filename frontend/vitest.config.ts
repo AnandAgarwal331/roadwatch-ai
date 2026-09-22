@@ -14,6 +14,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // Read by lib/session.ts at import time.
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+    },
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
 });

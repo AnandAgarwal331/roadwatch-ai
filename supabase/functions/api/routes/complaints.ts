@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { AuthenticationError, ConflictError, NotFoundError, PermissionDeniedError, ValidationError } from "../_shared/errors.ts";
 import { userClient, currentUserId } from "../_shared/supabase.ts";
+import { settings } from "../_shared/config.ts";
 import { writeRateLimit } from "../_shared/rate_limit.ts";
 import { toDetail, toDuplicateCandidate, toPriorityResponse, toSummary, nextStep, paginated } from "../_shared/serializers.ts";
 import { CLOSED_STATUSES, type ComplaintStatus, type DamageType, type PriorityLevel } from "../_shared/enums.ts";
@@ -79,13 +80,14 @@ complaints.post("/", async (c) => {
   let imageBytes: Uint8Array | null = null;
   let imageContentType: string | null = null;
   if (photo instanceof File && photo.name) {
-    const buf = await photo.arrayBuffer();
-    imageBytes = new Uint8Array(buf);
+    // Checked against the declared size before reading, so an oversized file
+    // is refused without first being pulled into memory.
+    const maxBytes = settings.MAX_UPLOAD_BYTES;
+    if (photo.size > maxBytes) {
+      throw new ValidationError(`That image is too large. Please upload a file under ${Math.round(maxBytes / (1024 * 1024))}MB.`);
+    }
+    imageBytes = new Uint8Array(await photo.arrayBuffer());
     if (imageBytes.length > 0) {
-      const maxBytes = 10 * 1024 * 1024;
-      if (imageBytes.length > maxBytes) {
-        throw new ValidationError(`That image is too large. Please upload a file under ${Math.round(maxBytes / (1024 * 1024))}MB.`);
-      }
       imageContentType = photo.type || null;
     }
   }

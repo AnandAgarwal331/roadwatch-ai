@@ -207,14 +207,48 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "complaint.created": "Report submitted",
   "complaint.status_changed": "Status changed",
   "complaint.rejected": "Report rejected",
+  "complaint.deleted": "Report deleted",
   "complaint.priority_overridden": "Priority overridden",
   "complaint.reassessed": "Assessment re-run",
   "complaint.assigned": "Assigned to a crew",
   "repair.started": "Repair started",
   "repair.completed": "Repair completed",
   "repair.verified": "Repair verified",
+  "repair.rework_requested": "Sent back for rework",
+  "repair.flagged": "Crew flagged a problem",
+  "repair.escalated": "Escalated as an emergency",
   "duplicate.confirmed": "Merged as duplicate",
   "duplicate.rejected": "Marked as separate",
   "team.created": "Team created",
   "team.updated": "Team updated",
 };
+
+/**
+ * What a crew can report is wrong with an assignment, before or during work -
+ * distinct from "I finished it" (that's the completion form) and from an
+ * admin editing the report itself (that stays an admin-only action). Each
+ * value is sent to the server as-is, prefixed onto whatever detail the crew
+ * types; the server only ever sees one free-text reason (see
+ * `POST /team/tasks/:id/flag`), the same shape `rejectComplaint` already uses.
+ */
+export const ASSIGNMENT_FLAG_REASONS: { value: string; label: string }[] = [
+  { value: "Wrong location", label: "Wrong location" },
+  { value: "Issue already repaired", label: "Issue already repaired" },
+  { value: "Cannot access location", label: "Cannot access location" },
+  { value: "Duplicate report", label: "Duplicate of another job" },
+  { value: "Requires specialised equipment", label: "Requires specialised equipment" },
+  { value: "Incorrect AI classification", label: "Incorrect AI classification" },
+  { value: "Safety concern", label: "Safety concern" },
+  { value: "Other", label: "Other" },
+];
+
+/** Reasons a crew can give for escalating a job as an emergency; see ASSIGNMENT_FLAG_REASONS' own comment on the wire shape. */
+export const EMERGENCY_REASONS: { value: string; label: string }[] = [
+  { value: "Road collapse", label: "Road collapse" },
+  { value: "Exposed manhole", label: "Exposed manhole" },
+  { value: "Major crater", label: "Major crater" },
+  { value: "Flooded road", label: "Flooded road" },
+  { value: "Dangerous obstruction", label: "Dangerous obstruction" },
+  { value: "Accident risk", label: "Accident risk" },
+  { value: "Other", label: "Other" },
+];

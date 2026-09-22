@@ -170,6 +170,11 @@ export interface AssignmentSummary {
   verified_at: string | null;
   notes: string | null;
   created_at: string;
+  repair_details: RepairDetails | null;
+  rework_count: number;
+  rework_reason: string | null;
+  is_emergency: boolean;
+  emergency_reason: string | null;
 }
 
 export interface ComplaintSummary {
@@ -188,6 +193,15 @@ export interface ComplaintSummary {
   thumbnail_url: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * The status of this report's active repair, admin views only (the public
+   * feed, a citizen's own reports, and a crew's task list all omit it - `undefined`
+   * there, never a guess). `"COMPLETED"` is the one that means "your turn to
+   * approve": see `AssignmentStatusBadge`.
+   */
+  assignment_status?: AssignmentStatus | null;
+  /** Admin views only, alongside `assignment_status` - the active repair has passed its due date. */
+  is_overdue?: boolean;
 }
 
 export interface ComplaintDetail extends ComplaintSummary {
@@ -280,6 +294,10 @@ export interface Kpis {
   reports_last_7_days: number;
   reports_last_30_days: number;
   pending_duplicates: number;
+  /** Repairs a crew has marked done that no admin has approved yet. */
+  awaiting_verification: number;
+  /** Reports whose active repair has passed its due date. */
+  overdue: number;
 }
 
 export interface DashboardResponse {
@@ -322,6 +340,7 @@ export interface AnalyticsResponse {
     capacity: number;
     average_completion_hours: number | null;
     on_time_rate: number | null;
+    rework_rate: number | null;
   }[];
   resolution_by_priority: {
     level: string;
@@ -358,6 +377,15 @@ export interface RepairEvidence {
   created_at: string;
 }
 
+export interface RepairDetails {
+  repair_type: string | null;
+  materials: string | null;
+  quantity: string | null;
+  equipment: string | null;
+  workers_count: number | null;
+  cost_amount: number | null;
+}
+
 export interface Task {
   id: string;
   status: AssignmentStatus;
@@ -367,9 +395,26 @@ export interface Task {
   verified_at: string | null;
   notes: string | null;
   created_at: string;
-  complaint: ComplaintSummary;
+  /**
+   * `ComplaintDetail` on `GET /team/tasks/:id` (the AI priority explanation,
+   * traffic, nearby places - see `toTaskDetail`), the leaner `ComplaintSummary`
+   * shape everywhere else (dashboard cards, the job list). `ComplaintDetail`
+   * extends `ComplaintSummary`, so every field this type declares is safe to
+   * read regardless of which endpoint produced it; only the richer ones may
+   * be absent outside the single-job view.
+   */
+  complaint: ComplaintSummary | ComplaintDetail;
   evidence: RepairEvidence[];
   is_overdue: boolean;
+  repair_details: RepairDetails | null;
+  rework_count: number;
+  rework_reason: string | null;
+  reworked_at: string | null;
+  flag_reason: string | null;
+  flagged_at: string | null;
+  is_emergency: boolean;
+  emergency_reason: string | null;
+  escalated_at: string | null;
 }
 
 export interface TeamDashboard {
@@ -381,10 +426,13 @@ export interface TeamDashboard {
   stats: {
     open_jobs: number;
     critical_open: number;
+    emergency_open: number;
     in_progress: number;
     overdue: number;
     completed_total: number;
     capacity: number;
+    average_completion_hours: number | null;
+    completion_rate: number | null;
   };
 }
 
@@ -420,6 +468,8 @@ export interface AuditEntry {
 export interface SystemSettings {
   priority_weights: Record<string, number>;
   priority_thresholds: Record<string, number>;
+  /** Target hours to resolve a job, by priority level - what "overdue" is measured against. */
+  sla_hours: Record<string, number>;
   nearby_radius_meters: number;
   duplicate_radius_meters: number;
   duplicate_window_days: number;

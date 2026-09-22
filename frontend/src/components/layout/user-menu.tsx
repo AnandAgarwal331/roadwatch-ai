@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/toast";
+import { useIdleTimeout } from "@/lib/use-idle-timeout";
 import { initials } from "@/lib/utils";
 import type { User } from "@/types";
 
@@ -25,7 +26,7 @@ export function UserMenu({ user }: { user: User }) {
   const { error: toastError } = useToast();
   const [signingOut, setSigningOut] = React.useState(false);
 
-  async function signOut() {
+  async function signOut(destination = "/") {
     setSigningOut(true);
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
@@ -33,13 +34,27 @@ export function UserMenu({ user }: { user: User }) {
 
       // Drop every cached response so the next user cannot see the last one's data.
       queryClient.clear();
-      router.replace("/");
+      router.replace(destination);
       router.refresh();
     } catch {
       toastError("Could not sign out", "Please check your connection and try again.");
       setSigningOut(false);
     }
   }
+
+  useIdleTimeout({
+    onTimeout: () => void signOut("/login?reason=idle"),
+    onKeepAlive: () => {
+      fetch("/api/auth/keepalive", { method: "POST" })
+        .then((response) => {
+          // The server says the session is over (refresh token revoked or
+          // expired). Nothing left to renew, so end it here too.
+          if (response.status === 401) void signOut("/login?reason=expired");
+        })
+        // A network blip is not a reason to sign anyone out; the next ping retries.
+        .catch(() => {});
+    },
+  });
 
   return (
     <DropdownMenu>

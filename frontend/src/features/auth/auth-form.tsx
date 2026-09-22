@@ -56,6 +56,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const queryClient = useQueryClient();
   const [formError, setFormError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  // Set when registration succeeded but the account still has to be confirmed
+  // by email, which replaces the form with instructions.
+  const [confirmationSent, setConfirmationSent] = React.useState<string | null>(null);
 
   const isLogin = mode === "login";
 
@@ -105,6 +108,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         return;
       }
 
+      if ((body as { needs_confirmation?: boolean } | null)?.needs_confirmation) {
+        setConfirmationSent((body as { message: string }).message);
+        setSubmitting(false);
+        return;
+      }
+
       const user = (body as { user: User }).user;
       queryClient.clear();
 
@@ -118,8 +127,43 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     }
   }
 
+  // The confirmation link lands here with the new session's tokens in the URL
+  // fragment. We do not use them (the user signs in normally), so do not leave
+  // them sitting in the address bar and browser history.
+  React.useEffect(() => {
+    if (window.location.hash.includes("access_token")) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  if (confirmationSent) {
+    return (
+      <Alert variant="success" title="Check your email">
+        <p>{confirmationSent}</p>
+      </Alert>
+    );
+  }
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      {isLogin && !formError && params.get("reason") === "idle" ? (
+        <Alert variant="warning" title="You were signed out">
+          <p>For your security, we sign you out after a period of inactivity. Please sign in again.</p>
+        </Alert>
+      ) : null}
+
+      {isLogin && !formError && params.get("reason") === "expired" ? (
+        <Alert variant="warning" title="Your session has ended">
+          <p>Please sign in again to continue.</p>
+        </Alert>
+      ) : null}
+
+      {isLogin && !formError && params.get("confirmed") === "1" ? (
+        <Alert variant="success" title="Email confirmed">
+          <p>Thanks - your address is confirmed. Sign in to get started.</p>
+        </Alert>
+      ) : null}
+
       {formError ? (
         <Alert variant="destructive" title={isLogin ? "Could not sign you in" : "Could not create your account"}>
           <p>{formError}</p>
