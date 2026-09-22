@@ -68,6 +68,11 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        // A geometric, slightly technical display face for headlines and the
+        // handful of numbers meant to read as "the important one" (a
+        // priority score, a stat). Body copy stays on --font-sans (Inter) -
+        // this is deliberately used sparingly, not a wholesale font swap.
+        display: ["var(--font-display)", "var(--font-sans)", "ui-sans-serif", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       boxShadow: {
@@ -99,6 +104,14 @@ const config: Config = {
           "0%": { transform: "translateY(-100%)" },
           "100%": { transform: "translateY(400%)" },
         },
+        "glow-pulse": {
+          "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
+          "50%": { opacity: "1", transform: "scale(1.06)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -107,6 +120,8 @@ const config: Config = {
         "fade-in": "fade-in 0.4s ease-out both",
         shimmer: "shimmer 1.8s infinite",
         "scan-sweep": "scan-sweep 1.9s ease-in-out infinite",
+        "glow-pulse": "glow-pulse 2.6s ease-in-out infinite",
+        float: "float 5s ease-in-out infinite",
       },
     },
   },

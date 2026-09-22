@@ -121,7 +121,14 @@ export function PriorityBadge({
         className,
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {level === "CRITICAL" ? (
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-glow-pulse rounded-full bg-current" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+        </span>
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      )}
       {PRIORITY_LABELS[level]}
       {score !== undefined ? <span className="tabular-nums font-medium">{score.toFixed(0)}</span> : null}
     </span>

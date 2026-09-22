@@ -36,7 +36,7 @@ export function HeroMap({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border bg-card shadow-panel",
+        "relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-border bg-card shadow-panel ring-1 ring-primary/10",
         className,
       )}
       role="img"
@@ -54,9 +54,14 @@ export function HeroMap({ className }: { className?: string }) {
               opacity="0.9"
             />
           </pattern>
+          <radialGradient id="rw-glow" cx="27%" cy="32%" r="65%">
+            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+          </radialGradient>
         </defs>
         <rect width="100%" height="100%" fill="hsl(var(--muted))" opacity="0.45" />
         <rect width="100%" height="100%" fill="url(#rw-grid)" />
+        <rect width="100%" height="100%" fill="url(#rw-glow)" />
 
         {/* Arterial roads */}
         <path
@@ -109,11 +114,14 @@ export function HeroMap({ className }: { className?: string }) {
       ))}
 
       {/* Floating summary card, echoing the real breakdown UI. */}
-      <div className="absolute bottom-4 left-4 right-4 rounded-xl border border-border bg-card/95 p-4 shadow-card backdrop-blur sm:right-auto sm:w-72">
+      <div className="glow-primary absolute bottom-4 left-4 right-4 animate-float rounded-xl border border-border bg-card/95 p-4 backdrop-blur sm:right-auto sm:w-72">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[11px] text-muted-foreground">RW-2026-001024</span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-priority-critical/30 bg-priority-critical/10 px-2 py-0.5 text-[11px] font-semibold text-priority-critical">
-            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-glow-pulse rounded-full bg-current" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+            </span>
             Critical
           </span>
         </div>
@@ -137,7 +145,7 @@ export function HeroMap({ className }: { className?: string }) {
         </dl>
 
         <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
-          Priority <span className="font-semibold text-foreground tabular-nums">87.5</span> / 100
+          Priority <span className="font-display font-semibold text-foreground tabular-nums">87.5</span> / 100
         </p>
       </div>
     </div>

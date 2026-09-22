@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PRIORITY_DISCLAIMER } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { publicFetch } from "@/lib/session";
 
 interface PublicStats {
@@ -89,7 +90,7 @@ async function HeroStats() {
   if (!stats) return null;
 
   return (
-    <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6">
+    <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border/70 pt-6">
       {[
         { label: "Reports handled", value: stats.total_reports },
         { label: "Resolved", value: stats.resolved },
@@ -97,7 +98,9 @@ async function HeroStats() {
       ].map((stat) => (
         <div key={stat.label}>
           <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-          <dd className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</dd>
+          <dd className="mt-1 font-display text-2xl font-semibold tabular-nums tracking-tight">
+            {stat.value}
+          </dd>
         </div>
       ))}
     </dl>
@@ -106,7 +109,10 @@ async function HeroStats() {
 
 function HeroStatsSkeleton() {
   return (
-    <div className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6" aria-hidden="true">
+    <div
+      className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border/70 pt-6"
+      aria-hidden="true"
+    >
       {Array.from({ length: 3 }, (_, i) => (
         <div key={i} className="space-y-2">
           <Skeleton className="h-3 w-20" />
@@ -122,26 +128,36 @@ export default function LandingPage() {
     <>
       {/* -- Hero ------------------------------------------------------- */}
       <section className="relative overflow-hidden border-b border-border">
-        <div className="pointer-events-none absolute inset-0 grid-backdrop" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 aurora-bg" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 grid-backdrop opacity-70" aria-hidden="true" />
 
-        <div className="container relative py-16 md:py-24">
+        <div className="container relative py-20 md:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
             <div className="animate-fade-up">
-              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-card backdrop-blur">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+                </span>
                 AI-assisted civic infrastructure reporting
               </span>
 
-              <h1 className="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">
-                Make Every Road Safer.
+              <h1 className="mt-6 text-balance font-display text-5xl font-semibold leading-[1.03] tracking-tight sm:text-6xl lg:text-[4rem]">
+                Make every
+                <br />
+                <span className="text-brand-gradient">road safer.</span>
               </h1>
 
-              <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
+              <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
                 Report road damage. Let AI identify the problem. Help cities fix what matters most.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg">
+                <Button
+                  asChild
+                  size="lg"
+                  className="shadow-[0_1px_2px_rgb(15,23,42,0.08)] hover:shadow-[0_12px_32px_-8px_hsl(var(--primary)/0.6)]"
+                >
                   <Link href="/report">
                     Report a Road Problem
                     <ArrowRight aria-hidden="true" />
@@ -176,12 +192,12 @@ export default function LandingPage() {
           <ol className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, index) => (
               <li key={step.title}>
-                <Card className="h-full p-6">
+                <Card className="glow-hover h-full border-border/80 p-6">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-accent/15 text-primary">
                       <step.icon className="h-[18px] w-[18px]" aria-hidden="true" />
                     </span>
-                    <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                    <span className="font-display text-xs font-semibold tabular-nums text-muted-foreground">
                       Step {index + 1}
                     </span>
                   </div>
@@ -195,8 +211,10 @@ export default function LandingPage() {
       </section>
 
       {/* -- Explainable priority -------------------------------------- */}
-      <section className="border-b border-border bg-muted/30 py-16 md:py-24">
-        <div className="container">
+      <section className="relative overflow-hidden border-b border-border py-16 md:py-24">
+        <div className="pointer-events-none absolute inset-0 aurora-bg opacity-60" aria-hidden="true" />
+
+        <div className="container relative">
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <div>
               <SectionHeading
@@ -224,24 +242,36 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <Card className="p-6">
-              <div className="flex items-end justify-between">
+            <Card className="glow-primary relative overflow-hidden border-primary/20 p-6">
+              {/* A faint sweep, echoing a scan in progress - the same
+                  keyframe the report-analysis screen uses for a real one. */}
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-24 animate-scan-sweep bg-gradient-to-b from-primary/12 via-accent/8 to-transparent"
+                aria-hidden="true"
+              />
+
+              <div className="relative flex items-end justify-between">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Priority score
                   </p>
                   <p className="mt-1 flex items-baseline gap-1.5">
-                    <span className="text-4xl font-semibold tabular-nums tracking-tight">86.5</span>
+                    <span className="font-display text-5xl font-semibold tabular-nums tracking-tight">
+                      86.5
+                    </span>
                     <span className="text-lg text-muted-foreground">/ 100</span>
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-priority-critical/30 bg-priority-critical/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-priority-critical">
-                  <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+                <span className="relative inline-flex items-center gap-1.5 rounded-full border border-priority-critical/30 bg-priority-critical/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-priority-critical">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-glow-pulse rounded-full bg-priority-critical" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-priority-critical" />
+                  </span>
                   Critical
                 </span>
               </div>
 
-              <ul className="mt-6 space-y-4">
+              <ul className="relative mt-6 space-y-4">
                 {[
                   { label: "Visual severity", value: "9.0", points: "+36.0", max: "40", width: "90%", tone: "bg-priority-critical" },
                   { label: "Traffic", value: "8.0", points: "+20.0", max: "25", width: "80%", tone: "bg-priority-high" },
@@ -259,18 +289,18 @@ export default function LandingPage() {
                       </span>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className={`h-full rounded-full ${factor.tone}`} style={{ width: factor.width }} />
+                      <div className={cn("h-full rounded-full", factor.tone)} style={{ width: factor.width }} />
                     </div>
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-5 flex items-baseline justify-between border-t border-border pt-3 text-sm font-medium">
+              <div className="relative mt-5 flex items-baseline justify-between border-t border-border pt-3 text-sm font-medium">
                 <span>Total</span>
                 <span className="tabular-nums">86.5 / 100</span>
               </div>
 
-              <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+              <p className="relative mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>{PRIORITY_DISCLAIMER}</span>
               </p>
@@ -289,8 +319,8 @@ export default function LandingPage() {
 
           <div className="mt-12 grid gap-6 md:grid-cols-2">
             {FEATURES.map((feature) => (
-              <Card key={feature.title} className="p-6">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Card key={feature.title} className="glow-hover border-border/80 p-6">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-accent/15 text-primary">
                   <feature.icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h3 className="mt-4 text-base font-semibold">{feature.title}</h3>
@@ -339,17 +369,26 @@ export default function LandingPage() {
       {/* -- CTA -------------------------------------------------------- */}
       <section className="py-16 md:py-24">
         <div className="container">
-          <Card className="overflow-hidden bg-primary text-primary-foreground">
-            <div className="relative px-6 py-14 text-center sm:px-12">
-              <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          <Card className="relative overflow-hidden border-none bg-gradient-to-br from-primary via-primary to-accent text-primary-foreground shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.55)]">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40 mix-blend-overlay"
+              style={{
+                backgroundImage:
+                  "radial-gradient(38rem 22rem at 20% 0%, white, transparent 60%), radial-gradient(30rem 20rem at 90% 100%, white, transparent 55%)",
+              }}
+              aria-hidden="true"
+            />
+
+            <div className="relative px-6 py-16 text-center sm:px-12">
+              <h2 className="text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl">
                 Spotted a problem on your street?
               </h2>
-              <p className="mx-auto mt-4 max-w-xl text-primary-foreground/85 text-pretty">
+              <p className="mx-auto mt-4 max-w-xl text-pretty text-primary-foreground/85">
                 It takes under a minute. Your report is analysed, scored and put in front of the
                 people who can fix it.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Button asChild size="lg" variant="secondary">
+                <Button asChild size="lg" variant="secondary" className="shadow-lg">
                   <Link href="/report">
                     Report a Road Problem
                     <ArrowRight aria-hidden="true" />
@@ -385,10 +424,20 @@ function SectionHeading({
 }) {
   return (
     <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-xl"}>
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{eyebrow}</p>
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{title}</h2>
+      <p
+        className={cn(
+          "flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary",
+          align === "center" && "justify-center",
+        )}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-primary to-accent" aria-hidden="true" />
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-balance font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        {title}
+      </h2>
       {description ? (
-        <p className="mt-4 leading-relaxed text-muted-foreground text-pretty">{description}</p>
+        <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">{description}</p>
       ) : null}
     </div>
   );

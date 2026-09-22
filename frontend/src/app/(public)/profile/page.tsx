@@ -18,7 +18,7 @@ export default async function ProfilePage() {
   return (
     <div className="container max-w-2xl py-8 md:py-12">
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Profile</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Profile</h1>
         <p className="mt-2 text-muted-foreground">
           Your contact details and password. Your email address is how you sign in and cannot be
           changed here.

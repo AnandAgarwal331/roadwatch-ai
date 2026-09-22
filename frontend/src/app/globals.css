@@ -4,26 +4,31 @@
 
 @layer base {
   :root {
-    --background: 210 40% 99%;
-    --foreground: 222 47% 11%;
+    --background: 220 45% 99%;
+    --foreground: 224 47% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 224 47% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 224 47% 9%;
 
-    /* Civic blue: authoritative without feeling like a warning. */
-    --primary: 214 84% 40%;
+    /* Electric indigo: the brand hue every glow/gradient in the app is built
+       from. Vivid enough to carry a glow at low opacity, not so saturated
+       that body text or long form UI ever feels loud. */
+    --primary: 226 83% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 32% 95%;
-    --secondary-foreground: 222 47% 15%;
+    --secondary: 224 32% 95%;
+    --secondary-foreground: 224 47% 15%;
 
-    --muted: 214 32% 96%;
-    --muted-foreground: 215 16% 44%;
+    --muted: 224 30% 96%;
+    --muted-foreground: 220 14% 43%;
 
-    --accent: 187 72% 34%;
+    /* Electric cyan: pairs with --primary for every gradient/glow pairing
+       (bg-gradient-to-r from-primary to-accent). Kept out of ordinary UI
+       chrome - it is a brand accent, not a second interactive colour. */
+    --accent: 191 91% 39%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 46%;
@@ -35,9 +40,9 @@
     --warning: 32 90% 45%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 25% 89%;
-    --input: 214 25% 89%;
-    --ring: 214 84% 40%;
+    --border: 222 24% 89%;
+    --input: 222 24% 89%;
+    --ring: 226 83% 55%;
 
     /* Priority bands, ordered so severity reads as heat. */
     --priority-critical: 0 72% 48%;
@@ -45,48 +50,51 @@
     --priority-medium: 41 92% 42%;
     --priority-low: 199 62% 38%;
 
-    --radius: 0.65rem;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222 45% 8%;
-    --foreground: 210 30% 96%;
+    /* Deep space blue rather than neutral charcoal - the hue ties the
+       background to --primary, so a glow reads as "light in the same room"
+       instead of a colour dropped on top of an unrelated grey. */
+    --background: 226 48% 6%;
+    --foreground: 210 32% 96%;
 
-    --card: 222 41% 11%;
-    --card-foreground: 210 30% 96%;
+    --card: 226 40% 10%;
+    --card-foreground: 210 32% 96%;
 
-    --popover: 222 41% 11%;
-    --popover-foreground: 210 30% 96%;
+    --popover: 226 40% 10%;
+    --popover-foreground: 210 32% 96%;
 
-    --primary: 213 88% 62%;
-    --primary-foreground: 222 47% 10%;
+    --primary: 221 91% 68%;
+    --primary-foreground: 224 47% 8%;
 
-    --secondary: 217 30% 18%;
+    --secondary: 224 30% 16%;
     --secondary-foreground: 210 30% 94%;
 
-    --muted: 217 30% 17%;
-    --muted-foreground: 215 20% 66%;
+    --muted: 224 30% 15%;
+    --muted-foreground: 217 18% 68%;
 
-    --accent: 187 65% 45%;
-    --accent-foreground: 222 47% 10%;
+    --accent: 189 94% 58%;
+    --accent-foreground: 224 47% 8%;
 
     --destructive: 0 68% 56%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 152 52% 46%;
-    --success-foreground: 222 47% 10%;
+    --success-foreground: 224 47% 8%;
 
     --warning: 35 92% 58%;
-    --warning-foreground: 222 47% 10%;
+    --warning-foreground: 224 47% 8%;
 
-    --border: 217 28% 22%;
-    --input: 217 28% 22%;
-    --ring: 213 88% 62%;
+    --border: 224 26% 20%;
+    --input: 224 26% 20%;
+    --ring: 221 91% 68%;
 
-    --priority-critical: 0 78% 60%;
+    --priority-critical: 0 78% 62%;
     --priority-high: 25 92% 58%;
     --priority-medium: 41 92% 55%;
-    --priority-low: 199 65% 55%;
+    --priority-low: 199 68% 58%;
   }
 }
 
@@ -130,6 +138,73 @@
     background-size: 46px 46px;
     mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
   }
+
+  /* The hero's backdrop: two slow-drifting colour fields in --primary and
+     --accent, faint in light mode (a wash, not a distraction behind body
+     text) and considerably richer in dark mode, where it is the whole point
+     - "light in the same room" as the glowing UI sitting on top of it. One
+     element, two radial-gradients, animated via background-position rather
+     than transform, so it never fights the content's own layout. */
+  .aurora-bg {
+    background-image:
+      radial-gradient(38rem 24rem at 15% 20%, hsl(var(--primary) / 0.16), transparent 65%),
+      radial-gradient(34rem 26rem at 85% 75%, hsl(var(--accent) / 0.14), transparent 65%);
+    background-size: 140% 140%;
+    animation: aurora-drift 22s ease-in-out infinite alternate;
+  }
+
+  .dark .aurora-bg {
+    background-image:
+      radial-gradient(42rem 30rem at 12% 15%, hsl(var(--primary) / 0.38), transparent 60%),
+      radial-gradient(38rem 32rem at 88% 80%, hsl(var(--accent) / 0.28), transparent 60%),
+      radial-gradient(30rem 24rem at 50% 100%, hsl(var(--primary) / 0.16), transparent 70%);
+  }
+
+  /* Gradient wordmark/headline text - primary to accent, the one brand
+     gradient reused everywhere something needs to read as "the AI part". */
+  .text-brand-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  /* A soft coloured glow behind an element, for the handful of moments that
+     should read as "this is the important one" - a hero card, the priority
+     score, a primary CTA on hover. Layered as a shadow, not a blur filter,
+     so it costs nothing to animate and never clips at a card's border-radius. */
+  .glow-primary {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.4),
+      0 8px 30px -8px hsl(var(--primary) / 0.45),
+      0 2px 10px -4px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-accent {
+    box-shadow:
+      0 0 0 1px hsl(var(--accent) / 0.4),
+      0 8px 30px -8px hsl(var(--accent) / 0.4);
+  }
+
+  /* Same idea, but reactive: transparent glow that fades in on hover/focus,
+     for cards that should feel alive without permanently competing with the
+     content inside them. */
+  .glow-hover {
+    box-shadow:
+      0 0 0 1px hsl(var(--border)),
+      0 1px 2px 0 rgb(15 23 42 / 0.04);
+    transition: box-shadow 300ms ease, transform 300ms ease;
+  }
+
+  .glow-hover:hover {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.5),
+      0 12px 32px -10px hsl(var(--primary) / 0.35);
+    transform: translateY(-2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glow-hover:hover {
+      transform: none;
+    }
+  }
 }
 
 @layer utilities {
@@ -139,6 +214,15 @@
 
   .text-pretty {
     text-wrap: pretty;
+  }
+}
+
+@keyframes aurora-drift {
+  0% {
+    background-position: 0% 0%, 100% 100%;
+  }
+  100% {
+    background-position: 8% 6%, 92% 94%;
   }
 }
 

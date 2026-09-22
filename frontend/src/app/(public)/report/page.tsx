@@ -21,7 +21,9 @@ export default async function ReportPage() {
   return (
     <div className="container max-w-4xl py-8 md:py-12">
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Report a road problem</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+          Report a road problem
+        </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
           It takes about a minute. Your report is analysed, scored and passed to the works
           department with a full explanation of how it was prioritised.

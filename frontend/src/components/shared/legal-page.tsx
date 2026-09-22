@@ -7,7 +7,7 @@ export const LEGAL_UPDATED = "21 September 2026";
 export function LegalPage({ title, intro, children }: { title: string; intro: string; children: React.ReactNode }) {
   return (
     <div className="container max-w-3xl py-10 md:py-14">
-      <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">Last updated {LEGAL_UPDATED}</p>
       <p className="mt-6 text-base leading-relaxed text-muted-foreground">{intro}</p>
       <div className="mt-8 space-y-8">{children}</div>
@@ -18,7 +18,7 @@ export function LegalPage({ title, intro, children }: { title: string; intro: st
 export function LegalSection({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-lg font-semibold">{heading}</h2>
+      <h2 className="font-display text-lg font-semibold">{heading}</h2>
       <div className="mt-2 space-y-3 text-sm leading-relaxed text-muted-foreground [&_li]:ml-5 [&_li]:list-disc [&_strong]:font-medium [&_strong]:text-foreground">
         {children}
       </div>

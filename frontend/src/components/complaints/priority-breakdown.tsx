@@ -42,7 +42,7 @@ export function PriorityBreakdown({
               Priority score
             </p>
             <p className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-4xl font-semibold tabular-nums tracking-tight">
+              <span className="font-display text-4xl font-semibold tabular-nums tracking-tight">
                 {assessment.total_score.toFixed(1)}
               </span>
               <span className="text-lg text-muted-foreground">/ 100</span>
@@ -119,7 +119,14 @@ export function PriorityPill({ level, className }: { level: PriorityLevel; class
         className,
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {level === "CRITICAL" ? (
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-glow-pulse rounded-full bg-current" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+        </span>
+      ) : (
+        <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      )}
       {PRIORITY_LABELS[level]}
     </span>
   );

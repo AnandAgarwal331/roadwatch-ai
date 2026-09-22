@@ -33,7 +33,7 @@ export function ComplaintCard({ complaint, href, className, onDelete, deleting }
   return (
     <Card
       className={cn(
-        "group overflow-hidden transition-shadow duration-200 hover:shadow-card-hover focus-within:shadow-card-hover",
+        "group overflow-hidden transition-[box-shadow,transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover focus-within:-translate-y-0.5 focus-within:border-primary/30 focus-within:shadow-card-hover",
         className,
       )}
     >

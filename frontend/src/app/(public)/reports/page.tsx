@@ -11,7 +11,9 @@ export default function ReportsPage() {
   return (
     <div className="container py-8 md:py-12">
       <header className="mb-8 max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-tight">Explore road issues</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+          Explore road issues
+        </h1>
         <p className="mt-2 text-muted-foreground">
           Every report submitted by citizens across the city, with the AI-assisted priority score
           the works department uses to plan repairs.

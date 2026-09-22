@@ -47,13 +47,19 @@ export function SiteHeader({ user }: { user: User | null }) {
                       href={link.href}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                        "relative rounded-md px-3 py-2 text-sm font-medium transition-colors",
                         active
-                          ? "bg-muted text-foreground"
+                          ? "text-foreground"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
                       {link.label}
+                      {active ? (
+                        <span
+                          className="absolute inset-x-3 -bottom-[1px] h-[2px] rounded-full bg-gradient-to-r from-primary to-accent"
+                          aria-hidden="true"
+                        />
+                      ) : null}
                     </Link>
                   </li>
                 );

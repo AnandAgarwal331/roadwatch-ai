@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <Card>
+    <Card className="border-border/80 bg-card/95 shadow-panel backdrop-blur">
       <CardHeader>
         <CardTitle className="text-xl">Create your account</CardTitle>
         <CardDescription>

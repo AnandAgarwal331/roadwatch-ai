@@ -113,7 +113,7 @@ export function ReportWizard() {
       <Card>
         <CardContent className="p-5 sm:p-6">
           <div className="mb-5">
-            <h2 className="text-lg font-semibold">{STEPS[stepIndex].title}</h2>
+            <h2 className="font-display text-lg font-semibold">{STEPS[stepIndex].title}</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">{STEPS[stepIndex].description}</p>
           </div>
 
@@ -187,9 +187,9 @@ function Stepper({ current }: { current: number }) {
             <span
               aria-current={state === "active" ? "step" : undefined}
               className={cn(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                state === "done" && "border-primary bg-primary text-primary-foreground",
-                state === "active" && "border-primary bg-primary/10 text-primary",
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-all",
+                state === "done" && "glow-primary border-primary bg-gradient-to-br from-primary to-accent text-primary-foreground",
+                state === "active" && "border-primary bg-primary/10 text-primary ring-2 ring-primary/20",
                 state === "todo" && "border-border bg-card text-muted-foreground",
               )}
             >

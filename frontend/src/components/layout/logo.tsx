@@ -19,7 +19,7 @@ export function Logo({
 }) {
   const content = (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <span className="glow-primary flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground">
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true" fill="none">
           <path
             d="M4 21 9.2 4h5.6L20 21"
@@ -39,8 +39,8 @@ export function Logo({
         </svg>
       </span>
       {showText ? (
-        <span className="text-[15px] font-semibold tracking-tight">
-          RoadWatch<span className="text-primary"> AI</span>
+        <span className="font-display text-[15px] font-semibold tracking-tight">
+          RoadWatch<span className="text-brand-gradient"> AI</span>
         </span>
       ) : null}
     </span>

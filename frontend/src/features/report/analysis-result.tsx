@@ -43,15 +43,15 @@ export function AnalysisProgress() {
       role="status"
       aria-live="polite"
     >
-      <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted">
+      <div className="glow-primary relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 to-accent/10">
         <ScanLine className="h-8 w-8 text-primary" aria-hidden="true" />
         <span
-          className="absolute inset-x-0 h-px animate-scan-sweep bg-primary/70"
+          className="absolute inset-x-0 h-px animate-scan-sweep bg-gradient-to-r from-transparent via-primary to-transparent"
           aria-hidden="true"
         />
       </div>
 
-      <p className="mt-6 text-base font-medium">{STAGES[stage]}</p>
+      <p className="mt-6 font-display text-base font-medium">{STAGES[stage]}</p>
       <p className="mt-1.5 text-sm text-muted-foreground">
         This usually takes a few seconds. Please keep this page open.
       </p>
@@ -83,7 +83,7 @@ export function AnalysisResult({ result }: { result: ComplaintCreateResponse }) 
           </span>
 
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">Your report has been submitted.</h2>
+            <h2 className="font-display text-lg font-semibold">Your report has been submitted.</h2>
             <p className="mt-1 text-sm text-muted-foreground">{result.next_step}</p>
           </div>
 
@@ -137,9 +137,12 @@ export function AnalysisResult({ result }: { result: ComplaintCreateResponse }) 
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
         {/* -- AI analysis ---------------------------------------------- */}
-        <Card>
+        <Card className="border-primary/20">
           <CardHeader>
-            <CardTitle>AI analysis</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <ScanLine className="h-4 w-4 text-primary" aria-hidden="true" />
+              AI analysis
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {photo ? (
@@ -166,13 +169,13 @@ export function AnalysisResult({ result }: { result: ComplaintCreateResponse }) 
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <dt className="text-xs text-muted-foreground">Confidence</dt>
-                  <dd className="mt-1 text-xl font-semibold tabular-nums">
+                  <dd className="mt-1 font-display text-xl font-semibold tabular-nums">
                     {Math.round(analysis.confidence * 100)}%
                   </dd>
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <dt className="text-xs text-muted-foreground">Visual severity</dt>
-                  <dd className="mt-1 text-xl font-semibold tabular-nums">
+                  <dd className="mt-1 font-display text-xl font-semibold tabular-nums">
                     {analysis.severity_score.toFixed(1)}
                     <span className="text-sm font-normal text-muted-foreground">/10</span>
                   </dd>
@@ -194,7 +197,7 @@ export function AnalysisResult({ result }: { result: ComplaintCreateResponse }) 
         </Card>
 
         {/* -- Priority -------------------------------------------------- */}
-        <Card>
+        <Card className="glow-primary border-primary/20">
           <CardHeader>
             <CardTitle>Priority calculation</CardTitle>
           </CardHeader>

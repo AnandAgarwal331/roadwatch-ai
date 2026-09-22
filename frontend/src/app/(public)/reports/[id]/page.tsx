@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ScanLine } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -80,7 +80,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
             <PriorityBadge level={complaint.priority_level} score={complaint.priority_score} />
           </div>
 
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
             {DAMAGE_TYPE_LABELS[complaint.damage_type]}
             {complaint.road_name ? (
               <span className="font-normal text-muted-foreground"> on {complaint.road_name}</span>
@@ -156,9 +156,12 @@ export default async function ReportDetailPage({ params }: PageProps) {
           </Card>
 
           {analysis ? (
-            <Card>
+            <Card className="border-primary/20">
               <CardHeader>
-                <CardTitle>AI analysis</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <ScanLine className="h-4 w-4 text-primary" aria-hidden="true" />
+                  AI analysis
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -238,7 +241,7 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
         <div className="space-y-6">
           {complaint.priority ? (
-            <Card>
+            <Card className="glow-primary border-primary/20">
               <CardHeader>
                 <CardTitle>Why this priority?</CardTitle>
               </CardHeader>
