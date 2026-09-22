@@ -12,12 +12,14 @@ import {
   Timer,
 } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { HeroMap } from "@/components/landing/hero-map";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PRIORITY_DISCLAIMER } from "@/lib/constants";
-import { serverFetch } from "@/lib/session";
+import { publicFetch } from "@/lib/session";
 
 interface PublicStats {
   total_reports: number;
@@ -76,11 +78,46 @@ const FEATURES = [
   },
 ];
 
-export default async function LandingPage() {
-  // Live aggregate figures from the public stats endpoint. The page renders
-  // fine without them, so a backend outage degrades rather than breaks.
-  const stats = await serverFetch<PublicStats>("/api/stats/public");
+/**
+ * The live figures under the hero. Fetched in here, behind a Suspense
+ * boundary, so the rest of the page paints at once instead of waiting on the
+ * backend. The page renders fine without them, so a backend outage degrades
+ * rather than breaks.
+ */
+async function HeroStats() {
+  const stats = await publicFetch<PublicStats>("/api/stats/public");
+  if (!stats) return null;
 
+  return (
+    <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6">
+      {[
+        { label: "Reports handled", value: stats.total_reports },
+        { label: "Resolved", value: stats.resolved },
+        { label: "Open now", value: stats.unresolved },
+      ].map((stat) => (
+        <div key={stat.label}>
+          <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+          <dd className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function HeroStatsSkeleton() {
+  return (
+    <div className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6" aria-hidden="true">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-7 w-12" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function LandingPage() {
   return (
     <>
       {/* -- Hero ------------------------------------------------------- */}
@@ -115,22 +152,9 @@ export default async function LandingPage() {
                 </Button>
               </div>
 
-              {stats ? (
-                <dl className="mt-10 grid max-w-md grid-cols-3 gap-6 border-t border-border pt-6">
-                  {[
-                    { label: "Reports handled", value: stats.total_reports },
-                    { label: "Resolved", value: stats.resolved },
-                    { label: "Open now", value: stats.unresolved },
-                  ].map((stat) => (
-                    <div key={stat.label}>
-                      <dt className="text-xs text-muted-foreground">{stat.label}</dt>
-                      <dd className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-                        {stat.value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : null}
+              <Suspense fallback={<HeroStatsSkeleton />}>
+                <HeroStats />
+              </Suspense>
             </div>
 
             <div className="animate-fade-up [animation-delay:120ms]">

@@ -26,6 +26,10 @@ export interface KpiSummary {
   reportsLast7Days: number;
   reportsLast30Days: number;
   pendingDuplicates: number;
+  /** Repairs a crew has marked done that no admin has approved yet. */
+  awaitingVerification: number;
+  /** Reports whose active repair has passed its due date. */
+  overdue: number;
 }
 
 function round(value: number, decimals: number): number {
@@ -33,80 +37,54 @@ function round(value: number, decimals: number): number {
   return Math.round(value * f) / f;
 }
 
-async function countWhere(client: SupabaseClient, filter: (q: any) => any): Promise<number> {
-  let query = client.from("complaints").select("*", { count: "exact", head: true });
-  query = filter(query);
-  const { count, error } = await query;
-  if (error) throw error;
-  return count ?? 0;
+/** What the kpi_summary() database function returns; see its migration. */
+interface KpiRow {
+  total: number;
+  by_status: Record<string, number>;
+  by_priority_level: Record<string, number>;
+  average_resolution_hours: number | null;
+  last_7_days: number;
+  last_30_days: number;
+  pending_duplicates: number;
+  awaiting_verification: number;
+  overdue: number;
 }
 
-async function countByStatus(client: SupabaseClient): Promise<Record<string, number>> {
-  const { data, error } = await client.from("complaints").select("status");
+/**
+ * Every headline figure and both distributions come from one database call.
+ * The counting used to happen here, after downloading every complaint row -
+ * slow, growing with the table, and silently wrong past PostgREST's 1000-row
+ * cap. See supabase/migrations/20260922020000_kpi_summary_rpc.sql.
+ */
+async function kpiRow(client: SupabaseClient): Promise<KpiRow> {
+  const { data, error } = await client.rpc("kpi_summary");
   if (error) throw error;
-  const counts: Record<string, number> = {};
-  for (const row of data ?? []) counts[row.status] = (counts[row.status] ?? 0) + 1;
-  return counts;
+  return data as KpiRow;
 }
 
-async function countByPriorityLevel(client: SupabaseClient): Promise<Record<string, number>> {
-  const { data, error } = await client.from("complaints").select("priority_level");
-  if (error) throw error;
-  const counts: Record<string, number> = {};
-  for (const row of data ?? []) counts[row.priority_level] = (counts[row.priority_level] ?? 0) + 1;
-  return counts;
-}
+export async function kpis(client: SupabaseClient): Promise<KpiSummary> {
+  const row = await kpiRow(client);
+  const byStatus = row.by_status;
 
-async function averageResolutionHours(client: SupabaseClient): Promise<number | null> {
-  const { data, error } = await client.from("complaints").select("created_at, resolved_at").not("resolved_at", "is", null);
-  if (error) throw error;
-  const durations = (data ?? [])
-    .map((row) => (new Date(row.resolved_at).getTime() - new Date(row.created_at).getTime()) / 3_600_000)
-    .filter((h) => h >= 0);
-  if (durations.length === 0) return null;
-  return round(durations.reduce((a, b) => a + b, 0) / durations.length, 1);
-}
-
-async function pendingDuplicatesCount(client: SupabaseClient): Promise<number> {
-  const { count, error } = await client
-    .from("potential_duplicates")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "SUGGESTED");
-  if (error) throw error;
-  return count ?? 0;
-}
-
-export async function kpis(client: SupabaseClient, now: Date = new Date()): Promise<KpiSummary> {
-  const [total, byStatus, byLevel, avgResolution, pendingDuplicates] = await Promise.all([
-    countWhere(client, (q) => q),
-    countByStatus(client),
-    countByPriorityLevel(client),
-    averageResolutionHours(client),
-    pendingDuplicatesCount(client),
-  ]);
-
+  const total = row.total;
   const resolved = byStatus["RESOLVED"] ?? 0;
   const closed = (CLOSED_STATUSES as ComplaintStatus[]).reduce((sum, s) => sum + (byStatus[s] ?? 0), 0);
-  const since = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString();
-
-  const [last7, last30] = await Promise.all([
-    countWhere(client, (q) => q.gte("created_at", since(7))),
-    countWhere(client, (q) => q.gte("created_at", since(30))),
-  ]);
 
   return {
     totalReports: total,
-    critical: byLevel["CRITICAL" as PriorityLevel] ?? 0,
-    high: byLevel["HIGH" as PriorityLevel] ?? 0,
+    critical: row.by_priority_level["CRITICAL" as PriorityLevel] ?? 0,
+    high: row.by_priority_level["HIGH" as PriorityLevel] ?? 0,
     inProgress: byStatus["IN_PROGRESS"] ?? 0,
     resolved,
     pendingReview: (byStatus["PENDING"] ?? 0) + (byStatus["AI_ANALYZED"] ?? 0) + (byStatus["PRIORITIZED"] ?? 0),
     unresolved: total - closed,
-    averageResolutionHours: avgResolution,
+    averageResolutionHours: row.average_resolution_hours,
     resolutionRate: total ? round((resolved / total) * 100, 1) : 0.0,
-    reportsLast7Days: last7,
-    reportsLast30Days: last30,
-    pendingDuplicates,
+    reportsLast7Days: row.last_7_days,
+    reportsLast30Days: row.last_30_days,
+    pendingDuplicates: row.pending_duplicates,
+    awaitingVerification: row.awaiting_verification,
+    overdue: row.overdue,
   };
 }
 
@@ -173,12 +151,12 @@ export async function byDamageType(client: SupabaseClient): Promise<Record<strin
 }
 
 export async function priorityDistribution(client: SupabaseClient): Promise<Record<string, unknown>[]> {
-  const counts = await countByPriorityLevel(client);
+  const counts = (await kpiRow(client)).by_priority_level;
   return PRIORITY_LEVELS_DESC.map((level) => ({ level, count: counts[level] ?? 0 }));
 }
 
 export async function statusDistribution(client: SupabaseClient): Promise<Record<string, unknown>[]> {
-  const counts = await countByStatus(client);
+  const counts = (await kpiRow(client)).by_status;
   return ALL_STATUSES.map((status) => ({ status, count: counts[status] ?? 0 }));
 }
 
@@ -284,6 +262,11 @@ export async function teamPerformance(client: SupabaseClient): Promise<Record<st
       .filter((i) => i.completed_at && i.created_at)
       .map((i) => (new Date(i.completed_at).getTime() - new Date(i.created_at).getTime()) / 3_600_000);
     const onTime = completed.filter((i) => i.due_at && i.completed_at && new Date(i.completed_at) <= new Date(i.due_at));
+    // Every assignment that was ever sent back at least once, whether or not
+    // it has since been verified - a job resubmitted after rework still
+    // counts, same as `completed` above counts it once done regardless of
+    // how it got there.
+    const reworked = items.filter((i) => (i.rework_count ?? 0) > 0);
 
     return {
       team_id: team.id,
@@ -295,6 +278,7 @@ export async function teamPerformance(client: SupabaseClient): Promise<Record<st
       capacity: team.max_concurrent_jobs,
       average_completion_hours: durations.length ? round(durations.reduce((a, b) => a + b, 0) / durations.length, 1) : null,
       on_time_rate: completed.length ? round((onTime.length / completed.length) * 100, 1) : null,
+      rework_rate: completed.length ? round((reworked.length / completed.length) * 100, 1) : null,
     };
   });
 

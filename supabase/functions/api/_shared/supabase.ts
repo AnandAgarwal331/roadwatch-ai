@@ -69,11 +69,38 @@ export function serviceClient(): SupabaseClient {
   return _service;
 }
 
-/** The authenticated user's id, or null if the request has no valid session. */
+/**
+ * The authenticated user's id, or null if the request has no valid token.
+ *
+ * The token's signature and expiry are checked here, in the function, against
+ * the project's public signing keys (fetched once and cached), rather than by
+ * asking the auth server "who is this?" on every request. That question is a
+ * full network round trip, paid before any real work starts, on every
+ * authenticated call - the largest single cost of a typical request.
+ *
+ * What this does not notice is a session revoked on the server (signing out
+ * everywhere, say) before the token's own expiry. Sign-out clears the token
+ * from the browser, tokens are short-lived, and the *role and active flag are
+ * still re-read from the database on every call* (see requireUser), so a
+ * deactivated or demoted account loses access immediately regardless.
+ *
+ * If the project were still on the legacy shared-secret signing key, getClaims
+ * transparently falls back to asking the auth server, so this is never less
+ * safe than before - only faster once asymmetric keys are on.
+ */
 export async function currentUserId(req: Request): Promise<string | null> {
-  const { data, error } = await userClient(req).auth.getUser();
-  if (error || !data.user) return null;
-  return data.user.id;
+  const token = bearerToken(req);
+  if (!token) return null;
+
+  const { data, error } = await userClient(req).auth.getClaims(token);
+  const sub = data?.claims?.sub;
+  if (error || typeof sub !== "string" || !sub) return null;
+  return sub;
+}
+
+function bearerToken(req: Request): string | null {
+  const match = /^Bearer\s+(\S+)$/i.exec(req.headers.get("Authorization") ?? "");
+  return match ? match[1] : null;
 }
 
 /**

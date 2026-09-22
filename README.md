@@ -80,7 +80,7 @@ npx supabase functions deploy api     # deploy the Edge Function
 cd frontend
 npm run typecheck
 npm run lint
-npm test               # 54 tests
+npm test               # unit tests, incl. sign-in, route guard and session renewal
 npm run build
 
 # Edge Function - type-check every file (no bundler step; Deno reads TS directly)
@@ -119,6 +119,8 @@ every key and its default). The values that matter most:
 | `PRIORITY_WEIGHT_*` | 4.0 / 2.5 / 2.0 / 1.5 | Severity, traffic, location, history |
 | `PRIORITY_THRESHOLD_*` | 40 / 70 / 85 | Medium, high, critical bands |
 | `RATE_LIMIT_*` | see config.ts | Backed by a `rate_limit_counters` table, not in-memory |
+| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated. Set to your real site address(es) in production - the localhost default will not do |
+| `MAX_UPLOAD_BYTES` | 10 MB | Also enforced by Storage itself (see the `storage_bucket_limits` migration); keep the two in step |
 
 A handful of `SUPABASE_`-prefixed variables (`SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, ...) are auto-injected by
@@ -129,6 +131,21 @@ directly rather than expecting them from config.
 The live scoring values are visible in the app at **Admin -> Scoring
 settings**. They are read-only there on purpose: changing a scoring rule is a
 deployment change, which keeps it from being altered silently mid-operation.
+
+### Sessions
+
+Signing in stores two httpOnly cookies: a short-lived access token (one hour
+- `jwt_expiry` in `supabase/config.toml`) and the refresh token that renews it.
+The Next.js server swaps in a fresh access token when the old one expires
+(`resolveSession` in `frontend/src/lib/session.ts`, used by the route guard,
+the API proxy and the keep-alive endpoint), so nobody is signed out for being
+busy. While a signed-in page is open and being used, the browser pings
+`/api/auth/keepalive` every 10 minutes, which slides the cookies' expiry
+forward.
+
+Idle users are signed out after **30 minutes**: the open tab does it itself,
+and if the tab was simply closed the cookies expire on their own shortly
+after. Both numbers live in `frontend/src/lib/session-policy.ts`.
 
 ## Repository layout
 
@@ -151,6 +168,9 @@ process manager or container to run:
 
 - `supabase db push` applies every migration under `supabase/migrations/` in
   order - schema, RLS policies, and RPC functions are all plain SQL files.
+  **Run it before deploying the function**: the dashboard and landing-page
+  figures call the `kpi_summary()` database function, so a newer function
+  against an older database has no stats to show.
 - `supabase functions deploy api` bundles and deploys the Edge Function; it
   needs `supabase/functions/api/deno.json` (a function-scoped import map -
   the bundler does not pick up a shared one at `supabase/functions/deno.json`
@@ -160,3 +180,83 @@ process manager or container to run:
   provider URL, CORS origins for a real frontend domain, and so on).
 - Point the frontend's `NEXT_PUBLIC_SUPABASE_URL` /
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` at the same project and deploy it.
+
+### Speed
+
+Most of the time a page takes is waiting on the network, so the app is built to
+wait as little and as rarely as it can:
+
+- **Sign-in and page loads read the user's profile directly from Supabase's
+  database API**, not through the Edge Function (one request instead of three),
+  and remember it for 30 seconds (`frontend/src/lib/session.ts`). A role change
+  or deactivation can therefore take up to 30 seconds to show in what a page
+  *renders*; the backend still checks the database on every request that reads
+  or changes data.
+- **Signed-out visitors' reads are cached** for 30 seconds in the Next.js server,
+  and a stale answer is served instantly while a fresh one loads
+  (`frontend/src/app/api/proxy/[...path]/route.ts`, `ttl-cache.ts`). Signed-in
+  users are never served from, or stored in, that shared cache. The
+  `x-rw-cache` response header says `hit`, `stale` or `miss`.
+- **The Edge Function verifies tokens itself** against the project's public
+  signing keys instead of calling the auth server on every request, and works
+  out the statistics in one SQL query (`kpi_summary()`) instead of downloading
+  every report to count it. A token revoked on the server is honoured once it
+  expires (`jwt_expiry`: 1 hour in `config.toml`, but the hosted project was
+  created with 12 hours and keeps that until its auth settings are pushed)
+  rather than instantly; sign-out clears it from the browser
+  at once, and the role and active flag are still read from the database on
+  every call.
+- Pages show a loading skeleton the moment a link is clicked, and the landing
+  page's statistics stream in after the rest of the page.
+
+- **Cold starts** - the first call to an Edge Function that has sat idle takes 2
+  to 3 seconds instead of about half a second. `supabase/optional/keep_api_warm.sql`
+  keeps one instance running in the regions traffic comes from by asking
+  `/api/health` once a minute. It is kept out of `supabase/migrations/` because it
+  creates recurring jobs on the database; apply it deliberately (the command
+  is in the file's header) if the first-click delay bothers you.
+
+Judge speed on a production build (`npm run build && npm start`), never
+`npm run dev`, which compiles each page the first time it is opened.
+
+### Before going live
+
+Things that work on `localhost` and quietly break on a real domain. None of
+them can be checked from the code, so go through them once per deployment:
+
+1. **Redirect URLs.** In Supabase (Authentication -> URL Configuration) set the
+   Site URL to the deployed address and add both
+   `https://<your-domain>/reset-password` and
+   `https://<your-domain>/login?confirmed=1` to the redirect allow-list.
+   Without them the password-reset and email-confirmation links are rejected.
+   `supabase/config.toml` lists the `localhost` pair for local work.
+2. **Email confirmation and a real email sender.** `config.toml` turns
+   confirmation on (nobody can register an address they do not own). The
+   hosted project must have it enabled too - Authentication -> Providers ->
+   Email -> "Confirm email", or `npx supabase config push`, which applies
+   every value in `config.toml`, so read the diff first. Supabase's built-in
+   mailer only reaches project team members and allows a couple of messages an
+   hour, so add custom SMTP (Authentication -> SMTP Settings, or the
+   `[auth.email.smtp]` block in `config.toml`) before real users register. The
+   app works either way: with confirmation off, registering signs the user in
+   directly.
+3. **CORS.** `supabase secrets set CORS_ORIGINS=https://<your-domain>`.
+4. **Migrations.** `npx supabase db push` - in particular the ones that carry
+   the phone number through signup and set the upload limits on the Storage
+   buckets.
+5. **Hosting region.** Every page and every API call crosses the network to
+   Supabase several times, and this project's database is in **Tokyo**
+   (`ap-northeast-1`), so the app's server functions should run there too -
+   `frontend/vercel.json` pins Vercel to `hnd1` (Tokyo). Left on Vercel's default
+   (the US), each backend call adds a few hundred milliseconds; measured from
+   a plain laptop connection, even a call that touches no database at all
+   takes about a third of a second, so distance to the database is what you
+   are really paying for. Edge Functions run in whichever region is nearest the
+   caller, so with the app server in Tokyo they run in Tokyo, next to the
+   database. If you ever move the database, move this with it.
+6. **Upload size.** Photos are limited to 10 MB. Serverless hosts cap request
+   bodies well below that (Vercel: 4.5 MB), so the browser shrinks any photo
+   over 3 MB to 1600 px before sending it (`frontend/src/lib/shrink-image.ts`),
+   which is what the backend would do to it anyway. Repair evidence with many
+   large photos in one submission can still exceed a host's cap; if that
+   happens, submit them in smaller batches.

@@ -158,7 +158,7 @@ Authorisation is layered, and each layer is honest about its job:
 
 | Layer | What it is for | What it is *not* |
 |---|---|---|
-| `proxy.ts` | Sends signed-out visitors to login, and each role to its own home | Not a security boundary; the role cookie is a routing hint |
+| `proxy.ts` | Sends signed-out visitors to login, each role to its own home, and quietly renews an expired access token from the refresh cookie | Not a security boundary; the role cookie is a routing hint |
 | Layout `getCurrentUser()` | Verifies the session against `/auth/me` before rendering a console | Still not the last word |
 | Row Level Security + `_shared/auth.ts` | The real check, re-run on every single request - the role is re-read from `profiles` every time, never trusted from the JWT | - |
 
