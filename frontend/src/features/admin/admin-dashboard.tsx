@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ChevronRight, Copy, Hammer, Inbox } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CheckCircle2, ChevronRight, Clock, Copy, Hammer, Inbox } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { PriorityBadge, StatusBadge } from "@/components/complaints/badges";
+import { PriorityBadge, RepairStatusBadge, StatusBadge } from "@/components/complaints/badges";
 import { PageHeading } from "@/components/dashboard/dashboard-shell";
 import {
   ChartCard,
@@ -27,6 +27,7 @@ import {
 } from "@/components/dashboard/chart-kit";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { ErrorState, TableSkeleton } from "@/components/shared/states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api, errorMessage } from "@/lib/api";
 import {
@@ -109,13 +110,34 @@ export function AdminDashboard() {
         }
       />
 
-      <StatGrid className="mb-6">
+      <StatGrid className="mb-6 lg:grid-cols-6">
         <StatCard
           label="Awaiting review"
           value={kpis.pending_review}
           icon={Inbox}
           href="/admin/reports?status=AWAITING_REVIEW"
           tone={kpis.pending_review > 0 ? "warning" : "default"}
+        />
+        {/* A crew has uploaded evidence and marked the repair done - this is
+            the "approve from your side" step, and the only way to find these
+            without it besides opening every in-progress report is the
+            notification that fires when one comes in. */}
+        <StatCard
+          label="Awaiting verification"
+          value={kpis.awaiting_verification}
+          hint="Repairs a crew has marked done"
+          icon={BadgeCheck}
+          href="/admin/reports?awaiting_verification=true"
+          tone={kpis.awaiting_verification > 0 ? "warning" : "default"}
+        />
+        {/* Past its SLA due date with the assignment still open - see
+            Settings for the target hours by priority. */}
+        <StatCard
+          label="Overdue"
+          value={kpis.overdue}
+          icon={Clock}
+          href="/admin/reports?overdue=true"
+          tone={kpis.overdue > 0 ? "critical" : "default"}
         />
         {/* `kpis.critical` counts every report scored critical, resolved ones
             included, so this is not an open-work figure - the priority queue
@@ -313,6 +335,15 @@ function QueueList({
                       <PriorityBadge level={report.priority_level} />
                     )}
                     <StatusBadge status={report.status} />
+                    {report.assignment_status === "COMPLETED" ? (
+                      <RepairStatusBadge status="COMPLETED" />
+                    ) : null}
+                    {report.is_overdue ? (
+                      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+                        <Clock className="h-3 w-3" aria-hidden="true" />
+                        Overdue
+                      </Badge>
+                    ) : null}
                   </div>
 
                   <p className="mt-1.5 truncate text-sm font-medium">

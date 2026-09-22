@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { boundingBox, haversineMeters } from "../services/geo.ts";
 import { CLOSED_STATUSES, type ComplaintStatus, type DamageType, type PriorityLevel } from "../_shared/enums.ts";
+import { complaintIdsAwaitingVerification, complaintIdsOverdue } from "./repair.ts";
 
 export interface ComplaintRow {
   id: string;
@@ -115,6 +116,10 @@ export interface ComplaintFilters {
   minPriority?: number;
   maxPriority?: number;
   excludeClosed?: boolean;
+  /** Only complaints whose repair a team has marked done but nobody has verified yet. */
+  awaitingVerification?: boolean;
+  /** Only complaints whose active repair has passed its due date. */
+  overdue?: boolean;
   /** [minLat, minLon, maxLat, maxLon] - a map viewport, already normalised. */
   bbox?: [number, number, number, number];
 }
@@ -134,7 +139,29 @@ async function resolveTeamComplaintIds(client: SupabaseClient, teamId: string): 
   return (data ?? []).map((row) => row.complaint_id);
 }
 
-function applyFilters(query: any, filters: ComplaintFilters, teamComplaintIds: string[] | null) {
+/**
+ * `filters.teamId`, `filters.awaitingVerification` and `filters.overdue` each
+ * narrow the result to a specific set of complaint ids, each resolved with
+ * its own query (PostgREST can't express any of them as a plain column
+ * comparison). Resolved together and intersected here, once, so
+ * `applyFilters` itself stays a plain synchronous function - see its own
+ * comment on why that matters.
+ */
+async function resolveIdRestriction(client: SupabaseClient, filters: ComplaintFilters): Promise<string[] | null> {
+  const idLists = await Promise.all([
+    filters.teamId ? resolveTeamComplaintIds(client, filters.teamId) : null,
+    filters.awaitingVerification ? complaintIdsAwaitingVerification(client) : null,
+    filters.overdue ? complaintIdsOverdue(client) : null,
+  ]);
+  const active = idLists.filter((ids): ids is string[] => ids !== null);
+  if (active.length === 0) return null;
+  if (active.length === 1) return active[0];
+  const [first, ...rest] = active;
+  const others = rest.map((ids) => new Set(ids));
+  return first.filter((id) => others.every((set) => set.has(id)));
+}
+
+function applyFilters(query: any, filters: ComplaintFilters, restrictToIds: string[] | null) {
   // A soft-deleted report (see delete_own_complaint) never appears in any
   // listing or on the map - not even for admins, who can still audit one
   // directly by id (getComplaintFull/getComplaintById carry no such filter).
@@ -143,7 +170,7 @@ function applyFilters(query: any, filters: ComplaintFilters, teamComplaintIds: s
   if (filters.damageType !== undefined) query = query.in("damage_type", filters.damageType);
   if (filters.priorityLevel !== undefined) query = query.in("priority_level", filters.priorityLevel);
   if (filters.reporterId) query = query.eq("reporter_id", filters.reporterId);
-  if (teamComplaintIds !== null) query = query.in("id", teamComplaintIds);
+  if (restrictToIds !== null) query = query.in("id", restrictToIds);
   if (filters.excludeClosed) query = query.not("status", "in", `(${CLOSED_STATUSES.join(",")})`);
   if (filters.createdFrom) query = query.gte("created_at", filters.createdFrom.toISOString());
   if (filters.createdTo) query = query.lte("created_at", filters.createdTo.toISOString());
@@ -172,9 +199,9 @@ function applyFilters(query: any, filters: ComplaintFilters, teamComplaintIds: s
 
 /** Lightweight projection for the map: no image/history eager-loading, ordered by priority. */
 export async function mapPoints(client: SupabaseClient, filters: ComplaintFilters, limit = 2000): Promise<ComplaintRow[]> {
-  const teamComplaintIds = filters.teamId ? await resolveTeamComplaintIds(client, filters.teamId) : null;
+  const restrictToIds = await resolveIdRestriction(client, filters);
   let query = client.from("complaints").select("*");
-  query = applyFilters(query, filters, teamComplaintIds);
+  query = applyFilters(query, filters, restrictToIds);
   query = query.order("priority_score", { ascending: false }).limit(limit);
   const { data, error } = await query;
   if (error) throw error;
@@ -192,13 +219,13 @@ export async function listComplaints(
   const sortBy = SORTABLE_FIELDS.has(opts.sortBy ?? "") ? opts.sortBy! : "priority_score";
   const ascending = (opts.sortDir ?? "desc") === "asc";
 
-  const teamComplaintIds = filters.teamId ? await resolveTeamComplaintIds(client, filters.teamId) : null;
+  const restrictToIds = await resolveIdRestriction(client, filters);
   let query = client
     .from("complaints")
     .select("*, images:complaint_images(*), location:locations(*), assignments:repair_assignments(*)", {
       count: "exact",
     });
-  query = applyFilters(query, filters, teamComplaintIds);
+  query = applyFilters(query, filters, restrictToIds);
   query = query
     .order(sortBy, { ascending })
     .order("created_at", { ascending: false })

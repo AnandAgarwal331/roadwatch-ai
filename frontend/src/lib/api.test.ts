@@ -129,6 +129,25 @@ describe("apiRequest", () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     await expect(api.delete("/whatever")).resolves.toBeUndefined();
   });
+
+  it("sends a DELETE with no body when none is given", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: "Deleted." }));
+    await api.delete("/admin/teams/t1");
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("lets a DELETE carry a reason, the same as a POST or PATCH body", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: "Deleted." }));
+    await api.delete("/admin/reports/c1", { reason: "Spam" });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("DELETE");
+    expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
+    expect(init.body).toBe(JSON.stringify({ reason: "Spam" }));
+  });
 });
 
 describe("errorMessage", () => {

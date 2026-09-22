@@ -1,14 +1,15 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Search, X } from "lucide-react";
+import { AlertTriangle, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
-import { DamageTypeBadge, PriorityBadge, StatusBadge } from "@/components/complaints/badges";
+import { DamageTypeBadge, PriorityBadge, RepairStatusBadge, StatusBadge } from "@/components/complaints/badges";
 import { PageHeading } from "@/components/dashboard/dashboard-shell";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/shared/states";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -53,9 +54,20 @@ const ALL_STATUSES: ComplaintStatus[] = [
 const AWAITING_REVIEW = "AWAITING_REVIEW";
 const AWAITING_REVIEW_STATUSES: ComplaintStatus[] = ["PENDING", "AI_ANALYZED", "PRIORITIZED"];
 
+/**
+ * A repair the crew has marked done, waiting on an admin to approve it.
+ * Not a report `status` at all - the report itself stays IN_PROGRESS for the
+ * whole repair - so unlike AWAITING_REVIEW this maps to its own query
+ * parameter (`awaiting_verification`) rather than a set of statuses.
+ */
+const AWAITING_VERIFICATION = "AWAITING_VERIFICATION";
+
+/** Same shape as AWAITING_VERIFICATION: a report whose active repair has passed its due date, not a status of its own. */
+const OVERDUE = "OVERDUE";
+
 /** The `status` query value for a filter selection. */
 function statusParam(value: string): ComplaintStatus[] | string | undefined {
-  if (value === ANY) return undefined;
+  if (value === ANY || value === AWAITING_VERIFICATION || value === OVERDUE) return undefined;
   if (value === AWAITING_REVIEW) return AWAITING_REVIEW_STATUSES;
   return value;
 }
@@ -72,14 +84,26 @@ export function ReportQueue() {
   const params = useSearchParams();
 
   // The dashboard tiles link in with a filter already applied, so the initial
-  // state is read from the URL rather than hard-coded.
+  // state is read from the URL rather than hard-coded. awaiting_verification
+  // and overdue are each their own query parameter (see their own comments),
+  // so they are folded back into the one status dropdown here.
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [status, setStatus] = React.useState<string>(params.get("status") ?? ANY);
+  const [status, setStatus] = React.useState<string>(
+    params.get("awaiting_verification") === "true"
+      ? AWAITING_VERIFICATION
+      : params.get("overdue") === "true"
+        ? OVERDUE
+        : (params.get("status") ?? ANY),
+  );
   const [priority, setPriority] = React.useState<string>(params.get("priority") ?? ANY);
   const [damageType, setDamageType] = React.useState<string>(ANY);
   const [sort, setSort] = React.useState<string>("priority_score:desc");
   const [page, setPage] = React.useState(1);
+  // A deep link only (from a user's "Reports" button) - not a control anyone
+  // picks from a dropdown, so it has no UI of its own here beyond the chip
+  // that shows it is active and lets it be cleared.
+  const [reporterId, setReporterId] = React.useState<string | undefined>(params.get("reporter_id") ?? undefined);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -92,7 +116,7 @@ export function ReportQueue() {
   const [sortBy, sortDir] = sort.split(":");
 
   const query = useQuery({
-    queryKey: ["admin", "reports", { debouncedSearch, status, priority, damageType, sort, page }],
+    queryKey: ["admin", "reports", { debouncedSearch, status, priority, damageType, sort, page, reporterId }],
     queryFn: () =>
       api.get<Paginated<ComplaintSummary>>("/admin/reports", {
         page,
@@ -101,20 +125,24 @@ export function ReportQueue() {
         sort_dir: sortDir,
         search: debouncedSearch || undefined,
         status: statusParam(status),
+        awaiting_verification: status === AWAITING_VERIFICATION ? true : undefined,
+        overdue: status === OVERDUE ? true : undefined,
         priority_level: priority === ANY ? undefined : priority,
         damage_type: damageType === ANY ? undefined : damageType,
+        reporter_id: reporterId,
       }),
     placeholderData: keepPreviousData,
   });
 
   const hasFilters =
-    debouncedSearch !== "" || status !== ANY || priority !== ANY || damageType !== ANY;
+    debouncedSearch !== "" || status !== ANY || priority !== ANY || damageType !== ANY || Boolean(reporterId);
 
   function clearFilters() {
     setSearch("");
     setStatus(ANY);
     setPriority(ANY);
     setDamageType(ANY);
+    setReporterId(undefined);
     setPage(1);
     router.replace("/admin/reports");
   }
@@ -125,6 +153,16 @@ export function ReportQueue() {
         title="Reports"
         description="Every report the system holds, including the rejected and duplicate ones that citizens do not see."
       />
+
+      {reporterId ? (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+          <span>Showing only reports from one user.</span>
+          <Button variant="ghost" size="sm" onClick={() => setReporterId(undefined)}>
+            <X aria-hidden="true" />
+            Clear
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mb-5 space-y-3 rounded-xl border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -155,6 +193,8 @@ export function ReportQueue() {
             <SelectContent>
               <SelectItem value={ANY}>All statuses</SelectItem>
               <SelectItem value={AWAITING_REVIEW}>Awaiting review</SelectItem>
+              <SelectItem value={AWAITING_VERIFICATION}>Awaiting verification</SelectItem>
+              <SelectItem value={OVERDUE}>Overdue</SelectItem>
               {ALL_STATUSES.map((item) => (
                 <SelectItem key={item} value={item}>
                   {STATUS_LABELS[item]}
@@ -310,7 +350,22 @@ export function ReportQueue() {
                       <DamageTypeBadge type={report.damage_type} />
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={report.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge status={report.status} />
+                        {/* The report status alone reads "In progress" for the
+                            whole repair; this is what tells an admin it is
+                            their turn to approve, whatever status filter they
+                            are looking under. */}
+                        {report.assignment_status === "COMPLETED" ? (
+                          <RepairStatusBadge status="COMPLETED" />
+                        ) : null}
+                        {report.is_overdue ? (
+                          <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">
+                            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                            Overdue
+                          </Badge>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">{report.report_count}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right text-muted-foreground">

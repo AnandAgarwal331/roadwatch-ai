@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { api, errorMessage } from "@/lib/api";
-import { PRIORITY_DISCLAIMER } from "@/lib/constants";
+import { PRIORITY_DISCLAIMER, PRIORITY_LABELS, PRIORITY_ORDER } from "@/lib/constants";
 import { formatDistance, formatPercent, humanise } from "@/lib/utils";
 import type { SystemSettings } from "@/types";
 
@@ -21,6 +21,15 @@ const WEIGHT_DESCRIPTIONS: Record<string, string> = {
   location: "Whether the spot sits near a hospital, school, bus stop or major junction.",
   history: "Whether this location has been reported before and keeps coming back.",
 };
+
+/** SLA_HOURS is always a whole number of hours, so this reads more naturally than formatDuration's decimal places. */
+function slaTarget(hours: number): string {
+  if (hours % 24 === 0 && hours >= 24) {
+    const days = hours / 24;
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
 
 export function SettingsView() {
   const query = useQuery({
@@ -112,6 +121,28 @@ export function SettingsView() {
                 <div key={level} className="rounded-lg border border-border p-3">
                   <dt className="text-xs text-muted-foreground">{humanise(level)} at or above</dt>
                   <dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>SLA targets</CardTitle>
+            <CardDescription>
+              How long a crew has to resolve a job once assigned, by priority. A job still open
+              past its target is shown as &ldquo;Overdue&rdquo; on the dashboard and report queue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid gap-4 sm:grid-cols-4">
+              {PRIORITY_ORDER.filter((level) => level.toLowerCase() in settings.sla_hours).map((level) => (
+                <div key={level} className="rounded-lg border border-border p-3">
+                  <dt className="text-xs text-muted-foreground">{PRIORITY_LABELS[level]}</dt>
+                  <dd className="mt-1 text-xl font-semibold tabular-nums">
+                    {slaTarget(settings.sla_hours[level.toLowerCase()])}
+                  </dd>
                 </div>
               ))}
             </dl>

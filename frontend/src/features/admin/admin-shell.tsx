@@ -5,6 +5,7 @@ import {
   Copy,
   LayoutDashboard,
   ListChecks,
+  MapPin,
   ScrollText,
   UserCog,
   SlidersHorizontal,
@@ -22,6 +23,7 @@ import type { User } from "@/types";
 const NAV: DashboardNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/reports", label: "Reports", icon: ListChecks },
+  { href: "/admin/map", label: "Map", icon: MapPin },
   { href: "/admin/duplicates", label: "Duplicates", icon: Copy },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/teams", label: "Repair teams", icon: Users },

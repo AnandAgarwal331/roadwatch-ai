@@ -12,7 +12,7 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { ConflictError, NotFoundError, ValidationError } from "../_shared/errors.ts";
 import { settings } from "../_shared/config.ts";
 import { ENGINE_VERSION } from "../services/priority.ts";
-import { toDetail, toDuplicateLink, toSummary, paginated } from "../_shared/serializers.ts";
+import { activeAssignment, toDetail, toDuplicateLink, toSummary, paginated } from "../_shared/serializers.ts";
 import { getComplaintFull, listComplaints, type ComplaintFilters } from "../repositories/complaint.ts";
 import {
   activeAssignmentForComplaint,
@@ -32,10 +32,13 @@ import {
   assignTeam,
   changeStatus,
   confirmDuplicate,
+  deleteComplaint,
   overridePriority,
   rejectComplaint,
   rejectDuplicate,
+  rejectRepair,
   reassessComplaint,
+  SLA_HOURS,
   verifyRepair,
 } from "../services/complaints.ts";
 import type { ComplaintStatus, DamageType, PriorityLevel } from "../_shared/enums.ts";
@@ -61,6 +64,8 @@ function kpisToWire(k: analytics.KpiSummary) {
     reports_last_7_days: k.reportsLast7Days,
     reports_last_30_days: k.reportsLast30Days,
     pending_duplicates: k.pendingDuplicates,
+    awaiting_verification: k.awaitingVerification,
+    overdue: k.overdue,
   };
 }
 
@@ -68,6 +73,27 @@ async function loadFullOrThrow(id: string) {
   const complaint = await getComplaintFull(serviceClient(), id);
   if (!complaint) throw new NotFoundError("That report could not be found.");
   return complaint;
+}
+
+/**
+ * `toSummary` plus the assignment status, admin-only: it is what lets the
+ * report queue and dashboard show "Awaiting verification" without a second
+ * request per row. Needs `complaint.assignments` selected (listComplaints
+ * embeds it; a caller that doesn't gets `assignment_status: null`).
+ */
+// deno-lint-ignore no-explicit-any
+function toAdminSummary(complaint: any): Record<string, unknown> {
+  const assignment = activeAssignment(complaint.assignments) as { status?: string; due_at?: string | null } | null;
+  const overdue = Boolean(
+    assignment?.due_at &&
+      (assignment.status === "ASSIGNED" || assignment.status === "IN_PROGRESS") &&
+      new Date(assignment.due_at).getTime() < Date.now(),
+  );
+  return {
+    ...toSummary(complaint),
+    assignment_status: assignment?.status ?? null,
+    is_overdue: overdue,
+  };
 }
 
 // -- dashboard & analytics ------------------------------------------------
@@ -85,8 +111,8 @@ admin.get("/dashboard", async (c) => {
 
   return c.json({
     kpis: kpisToWire(kpis),
-    priority_queue: queue.items.map(toSummary),
-    recent_reports: recent.items.map(toSummary),
+    priority_queue: queue.items.map(toAdminSummary),
+    recent_reports: recent.items.map(toAdminSummary),
     status_distribution: statusDist,
     priority_distribution: priorityDist,
   });
@@ -137,6 +163,12 @@ admin.get("/settings", async (c) => {
       high: settings.PRIORITY_THRESHOLD_HIGH,
       critical: settings.PRIORITY_THRESHOLD_CRITICAL,
     },
+    sla_hours: {
+      critical: SLA_HOURS.CRITICAL,
+      high: SLA_HOURS.HIGH,
+      medium: SLA_HOURS.MEDIUM,
+      low: SLA_HOURS.LOW,
+    },
     nearby_radius_meters: settings.NEARBY_RADIUS_METERS,
     duplicate_radius_meters: settings.DUPLICATE_RADIUS_METERS,
     duplicate_window_days: settings.DUPLICATE_WINDOW_DAYS,
@@ -169,6 +201,12 @@ admin.get("/reports", async (c) => {
     priorityLevel: priorityLevel.length > 0 ? priorityLevel : undefined,
     search: url.searchParams.get("search") ?? undefined,
     excludeClosed: url.searchParams.get("exclude_closed") === "true",
+    // A repair the crew marked done but nobody has approved yet - see
+    // toAdminSummary's assignment_status for what shows this per row.
+    awaitingVerification: url.searchParams.get("awaiting_verification") === "true" ? true : undefined,
+    // Past its SLA due date with the assignment still open - see SLA_HOURS.
+    overdue: url.searchParams.get("overdue") === "true" ? true : undefined,
+    reporterId: url.searchParams.get("reporter_id") ?? undefined,
   };
 
   const { items, total } = await listComplaints(serviceClient(), filters, {
@@ -178,7 +216,7 @@ admin.get("/reports", async (c) => {
     sortDir: (url.searchParams.get("sort_dir") ?? "desc") as "asc" | "desc",
   });
 
-  return c.json(paginated(items.map(toSummary), total, page, pageSize));
+  return c.json(paginated(items.map(toAdminSummary), total, page, pageSize));
 });
 
 admin.get("/reports/:id", async (c) => {
@@ -205,6 +243,18 @@ admin.post("/reports/:id/reject", async (c) => {
   }
   await rejectComplaint(complaint, body.reason, actor);
   return c.json(toDetail(await loadFullOrThrow(id), { includeReporter: true }));
+});
+
+admin.delete("/reports/:id", async (c) => {
+  const actor = await requireAdmin(c.req.raw);
+  const id = c.req.param("id");
+  const complaint = await loadFullOrThrow(id);
+  const body = await c.req.json().catch(() => ({}));
+  if (typeof body.reason !== "string" || body.reason.trim().length < 3) {
+    throw new ValidationError("Please give a reason for deleting this report.");
+  }
+  await deleteComplaint(complaint, body.reason, actor);
+  return c.json({ message: `${complaint.complaint_number} was deleted.` });
 });
 
 admin.patch("/reports/:id/priority", async (c) => {
@@ -236,6 +286,22 @@ admin.post("/reports/:id/verify", async (c) => {
   if (!assignment) throw new ConflictError("There is no completed repair to verify for this report.");
 
   await verifyRepair(assignment, actor, body.note ?? null);
+  return c.json(toDetail(await loadFullOrThrow(id), { includeReporter: true }));
+});
+
+admin.post("/reports/:id/reject-repair", async (c) => {
+  const actor = await requireAdmin(c.req.raw);
+  const id = c.req.param("id");
+  await loadFullOrThrow(id);
+  const body = await c.req.json().catch(() => ({}));
+  if (typeof body.reason !== "string" || body.reason.trim().length < 3) {
+    throw new ValidationError("Please explain what still needs to be fixed.");
+  }
+
+  const assignment = await activeAssignmentForComplaint(serviceClient(), id);
+  if (!assignment) throw new ConflictError("There is no completed repair to send back for this report.");
+
+  await rejectRepair(assignment, actor, body.reason.trim());
   return c.json(toDetail(await loadFullOrThrow(id), { includeReporter: true }));
 });
 

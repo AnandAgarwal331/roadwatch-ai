@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, UserCog } from "lucide-react";
+import { ClipboardList, Search, UserCog } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { PageHeading } from "@/components/dashboard/dashboard-shell";
@@ -126,6 +127,7 @@ export function UsersAdmin() {
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
                 <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Crew</th>
                 <th className="px-4 py-3 text-right font-medium">
                   <span className="sr-only">Actions</span>
@@ -149,15 +151,30 @@ export function UsersAdmin() {
                       {ROLE_LABELS[user.role]}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3">
+                    {user.is_active ? (
+                      <Badge variant="success">Active</Badge>
+                    ) : (
+                      <Badge variant="destructive">Suspended</Badge>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {user.team_id
                       ? (teamName.get(user.team_id) ?? (teams.isPending ? "..." : "Unknown crew"))
                       : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button variant="outline" size="sm" onClick={() => setEditing(user)}>
-                      Edit
-                    </Button>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/admin/reports?reporter_id=${user.id}`}>
+                          <ClipboardList aria-hidden="true" />
+                          Reports
+                        </Link>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setEditing(user)}>
+                        Edit
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -192,6 +209,7 @@ function EditUserDialog({
   const { success, error: toastError } = useToast();
   const [role, setRole] = React.useState<UserRole>(user?.role ?? "CITIZEN");
   const [teamId, setTeamId] = React.useState<string>(user?.team_id ?? NO_TEAM);
+  const [isActive, setIsActive] = React.useState(user?.is_active ?? true);
 
   const needsTeam = role === "REPAIR_TEAM";
   const teamAllowed = role !== "CITIZEN";
@@ -202,9 +220,15 @@ function EditUserDialog({
       api.patch<User>(`/admin/users/${user!.id}`, {
         role,
         team_id: teamAllowed && teamId !== NO_TEAM ? teamId : null,
+        is_active: isActive,
       }),
     onSuccess: () => {
-      success("Account updated", `${user!.email} is now ${ROLE_LABELS[role].toLowerCase()}.`);
+      success(
+        "Account updated",
+        isActive
+          ? `${user!.email} is now ${ROLE_LABELS[role].toLowerCase()}.`
+          : `${user!.email} has been suspended.`,
+      );
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
       onClose();
     },
@@ -241,6 +265,24 @@ function EditUserDialog({
               </SelectContent>
             </Select>
           </Field>
+
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(event) => setIsActive(event.target.checked)}
+              disabled={isSelf}
+              className="mt-0.5 h-4 w-4 rounded border-input accent-[hsl(var(--primary))] disabled:opacity-50"
+            />
+            <span>
+              Active
+              <span className="block text-xs font-normal text-muted-foreground">
+                {isSelf
+                  ? "You cannot suspend your own account - ask another administrator."
+                  : "A suspended account cannot sign in until reactivated."}
+              </span>
+            </span>
+          </label>
 
           <Field
             id="user-team"

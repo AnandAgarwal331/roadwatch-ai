@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Ban, SlidersHorizontal, UserPlus } from "lucide-react";
+import { BadgeCheck, Ban, Siren, SlidersHorizontal, Trash2, Undo2, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,9 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
   const queryClient = useQueryClient();
   const { success, error: toastError } = useToast();
 
-  const [open, setOpen] = React.useState<null | "status" | "reject" | "priority" | "assign" | "verify">(
-    null,
-  );
+  const [open, setOpen] = React.useState<
+    null | "status" | "reject" | "priority" | "assign" | "verify" | "reject_repair" | "delete"
+  >(null);
 
   function done(message: string, detail?: string) {
     success(message, detail);
@@ -85,6 +86,17 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
             <Button className="w-full justify-start" onClick={() => setOpen("verify")}>
               <BadgeCheck aria-hidden="true" />
               Verify the repair
+            </Button>
+          ) : null}
+
+          {awaitingVerification ? (
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setOpen("reject_repair")}
+            >
+              <Undo2 aria-hidden="true" />
+              Send back for rework
             </Button>
           ) : null}
 
@@ -124,6 +136,15 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
               Reject this report
             </Button>
           ) : null}
+
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setOpen("delete")}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete this report
+          </Button>
         </CardContent>
       </Card>
 
@@ -152,7 +173,25 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
                   <dd>{formatDateTime(complaint.assignment.completed_at)}</dd>
                 </div>
               ) : null}
+              {complaint.assignment.rework_count > 0 ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Sent back for rework</dt>
+                  <dd>
+                    {complaint.assignment.rework_count} time
+                    {complaint.assignment.rework_count === 1 ? "" : "s"}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
+            {complaint.assignment.is_emergency ? (
+              <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+                <Siren className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  The crew marked this an emergency
+                  {complaint.assignment.emergency_reason ? `: ${complaint.assignment.emergency_reason}` : "."}
+                </span>
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -191,6 +230,18 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
         onOpenChange={(value) => setOpen(value ? "verify" : null)}
         onDone={done}
         onError={failed("Could not verify the repair")}
+      />
+      <RejectRepairDialog
+        complaint={complaint}
+        open={open === "reject_repair"}
+        onOpenChange={(value) => setOpen(value ? "reject_repair" : null)}
+        onDone={done}
+        onError={failed("Could not send the repair back")}
+      />
+      <DeleteReportDialog
+        complaint={complaint}
+        open={open === "delete"}
+        onOpenChange={(value) => setOpen(value ? "delete" : null)}
       />
     </>
   );
@@ -451,6 +502,7 @@ function AssignDialog({ complaint, open, onOpenChange, onDone, onError }: Dialog
                   .map((team) => (
                     <SelectItem key={team.id} value={team.id}>
                       {team.name} - {team.open_jobs}/{team.max_concurrent_jobs} jobs
+                      {team.specialities ? ` - ${team.specialities}` : ""}
                     </SelectItem>
                   ))}
               </SelectContent>
@@ -530,6 +582,146 @@ function VerifyDialog({ complaint, open, onOpenChange, onDone, onError }: Dialog
           </Button>
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             {mutation.isPending ? "Verifying..." : "Verify repair"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RejectRepairDialog({ complaint, open, onOpenChange, onDone, onError }: DialogProps) {
+  const [reason, setReason] = React.useState("");
+  const valid = reason.trim().length >= 3;
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post<ComplaintDetail>(`/admin/reports/${complaint.id}/reject-repair`, {
+        reason: reason.trim(),
+      }),
+    onSuccess: () => {
+      setReason("");
+      onDone("Sent back for rework", "The crew has been notified and the job is open again.");
+    },
+    onError,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Send the repair back for rework</DialogTitle>
+          <DialogDescription>
+            The crew&rsquo;s evidence does not show the problem fixed. The job reopens for the same
+            crew, the evidence they submitted is cleared, and they are told why.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Field
+          id="reject-repair-reason"
+          label="What still needs to be fixed"
+          required
+          hint="Sent to the crew, and recorded against the job."
+          error={reason && !valid ? "Enter at least a few words." : undefined}
+        >
+          <Textarea
+            id="reject-repair-reason"
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            aria-describedby="reject-repair-reason-hint"
+          />
+        </Field>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !valid}
+          >
+            {mutation.isPending ? "Sending back..." : "Send back for rework"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Soft delete: the row and its history stay in the database for an audit,
+ * but disappear from every listing, the map and duplicate matching. Recovering
+ * one needs a database operator - the dialog says so rather than implying
+ * "Delete" is reversible from here.
+ */
+function DeleteReportDialog({
+  complaint,
+  open,
+  onOpenChange,
+}: {
+  complaint: ComplaintDetail;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const { success, error: toastError } = useToast();
+  const [reason, setReason] = React.useState("");
+  const valid = reason.trim().length >= 3;
+
+  const mutation = useMutation({
+    mutationFn: () => api.delete<{ message: string }>(`/admin/reports/${complaint.id}`, { reason: reason.trim() }),
+    onSuccess: (result) => {
+      success("Report deleted", result?.message);
+      onOpenChange(false);
+      router.push("/admin/reports");
+    },
+    onError: (error) => toastError("Could not delete this report", errorMessage(error)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {complaint.complaint_number}?</DialogTitle>
+          <DialogDescription>
+            Removes it from every listing, the map and duplicate matching, and notifies the
+            reporter. The record itself is kept for audit - recovering it needs a database
+            operator, so treat this as permanent.
+            {complaint.assignment && complaint.assignment.status !== "VERIFIED" ? (
+              <span className="mt-2 block font-medium text-destructive">
+                A crew currently has this job open - it will be cancelled.
+              </span>
+            ) : null}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Field
+          id="delete-report-reason"
+          label="Reason"
+          required
+          hint="Recorded against the report, and sent to the person who reported it."
+          error={reason && !valid ? "Enter at least a few words." : undefined}
+        >
+          <Textarea
+            id="delete-report-reason"
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            aria-describedby="delete-report-reason-hint"
+          />
+        </Field>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !valid}
+          >
+            {mutation.isPending ? "Deleting..." : "Delete report"}
           </Button>
         </DialogFooter>
       </DialogContent>

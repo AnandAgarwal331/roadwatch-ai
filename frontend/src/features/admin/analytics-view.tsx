@@ -456,6 +456,12 @@ export function AnalyticsView() {
                 // yet" is not the same as "0% on time".
                 cell: (row) => formatRate(row.on_time_rate),
               },
+              {
+                key: "rework",
+                header: "Rework",
+                numeric: true,
+                cell: (row) => formatRate(row.rework_rate),
+              },
             ]}
           />
         </Panel>

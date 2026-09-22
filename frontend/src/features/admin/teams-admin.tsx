@@ -222,6 +222,7 @@ function TeamDialog({
   const [phone, setPhone] = React.useState(team?.contact_phone ?? "");
   const [specialities, setSpecialities] = React.useState(team?.specialities ?? "");
   const [capacity, setCapacity] = React.useState(String(team?.max_concurrent_jobs ?? 5));
+  const [isActive, setIsActive] = React.useState(team?.is_active ?? true);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
 
@@ -233,6 +234,8 @@ function TeamDialog({
         contact_phone: phone.trim() || null,
         specialities: specialities.trim() || null,
         max_concurrent_jobs: Number(capacity),
+        // A new crew is always active; only an existing one can be deactivated.
+        ...(team ? { is_active: isActive } : {}),
       };
 
       // The code identifies the crew and is not editable after creation.
@@ -355,6 +358,24 @@ function TeamDialog({
               required
             />
           </Field>
+
+          {team ? (
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(event) => setIsActive(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-[hsl(var(--primary))]"
+              />
+              <span>
+                Active
+                <span className="block text-xs font-normal text-muted-foreground">
+                  An inactive crew keeps its history and members but cannot take new work - it
+                  won&rsquo;t appear when assigning a report.
+                </span>
+              </span>
+            </label>
+          ) : null}
 
           {formError ? (
             <p role="alert" className="text-sm font-medium text-destructive">
