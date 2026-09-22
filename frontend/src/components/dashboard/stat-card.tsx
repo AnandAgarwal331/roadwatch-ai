@@ -25,7 +25,10 @@ export function compactNumber(value: number): string {
 export type StatTone = "default" | "critical" | "warning" | "success";
 
 const TONES: Record<StatTone, { value: string; icon: string }> = {
-  default: { value: "text-foreground", icon: "bg-muted text-muted-foreground" },
+  default: {
+    value: "text-foreground",
+    icon: "bg-gradient-to-br from-primary/15 to-accent/15 text-primary",
+  },
   critical: { value: "text-destructive", icon: "bg-destructive/10 text-destructive" },
   warning: { value: "text-warning", icon: "bg-warning/10 text-warning" },
   success: { value: "text-success", icon: "bg-success/10 text-success" },
@@ -60,17 +63,17 @@ export function StatCard({
         {Icon ? (
           <span
             className={cn(
-              "rounded-md p-1.5 transition-transform duration-200",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200",
               href && "group-hover:scale-110 group-hover:rotate-3",
               tones.icon,
             )}
           >
-            <Icon className="h-4 w-4" aria-hidden="true" />
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
         ) : null}
       </div>
 
-      <p className={cn("mt-2 text-2xl font-semibold tracking-tight", tones.value)}>
+      <p className={cn("mt-2 font-display text-2xl font-semibold tracking-tight", tones.value)}>
         {typeof value === "number" ? compactNumber(value) : value}
       </p>
 

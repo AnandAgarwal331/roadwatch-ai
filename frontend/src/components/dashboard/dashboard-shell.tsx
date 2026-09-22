@@ -65,16 +65,28 @@ export function DashboardShell({ user, workspace, nav, children }: DashboardShel
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                 active
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:translate-x-0.5 hover:bg-muted hover:text-foreground",
               )}
             >
-              <Icon
-                className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110"
-                aria-hidden="true"
-              />
+              {active ? (
+                <span
+                  className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-gradient-to-b from-primary to-accent"
+                  aria-hidden="true"
+                />
+              ) : null}
+              <span
+                className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-all duration-200",
+                  active
+                    ? "bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[0_2px_10px_-2px_hsl(var(--primary)/0.5)]"
+                    : "group-hover:scale-110",
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </span>
               {item.label}
             </Link>
           </li>
@@ -114,7 +126,7 @@ export function DashboardShell({ user, workspace, nav, children }: DashboardShel
       </header>
 
       <div className="flex flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-border bg-muted/20 lg:block">
+        <aside className="hidden w-60 shrink-0 border-r border-border bg-card/40 backdrop-blur-xl lg:block">
           <nav aria-label={workspace} className="sticky top-16 p-4">
             {links}
           </nav>
@@ -151,7 +163,7 @@ export function PageHeading({
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? (
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
         ) : null}

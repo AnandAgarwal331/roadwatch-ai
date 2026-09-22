@@ -16,7 +16,6 @@ import {
 } from "recharts";
 
 import { PriorityBadge, RepairStatusBadge, StatusBadge } from "@/components/complaints/badges";
-import { PageHeading } from "@/components/dashboard/dashboard-shell";
 import {
   ChartCard,
   ChartEmpty,
@@ -25,10 +24,12 @@ import {
   axisProps,
   useChartTheme,
 } from "@/components/dashboard/chart-kit";
+import { PageHeading } from "@/components/dashboard/dashboard-shell";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { ErrorState, TableSkeleton } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DashboardMapWidget } from "@/features/admin/dashboard-map-widget";
 import { api, errorMessage } from "@/lib/api";
 import {
   PRIORITY_DISCLAIMER,
@@ -180,6 +181,8 @@ export function AdminDashboard() {
           tone={kpis.pending_duplicates > 0 ? "warning" : "default"}
         />
       </StatGrid>
+
+      <DashboardMapWidget />
 
       <div className="mb-8 grid gap-5 lg:grid-cols-2">
         <ChartCard
