@@ -254,7 +254,10 @@ const DETAIL_SELECT =
   "*, images:complaint_images(*), location:locations(*), nearby_places(*), " +
   "traffic_snapshots(*), status_history:complaint_status_history(*), " +
   "assessments:priority_assessments(*), analyses:ai_analyses(*, detections:ai_detections(*)), " +
-  "assignments:repair_assignments(*), reporter:profiles(*)";
+  // The crew's completion evidence rides along with the assignment - an
+  // admin deciding verify vs. send-back needs to see it, not just know it
+  // exists (see toDetail()/activeAssignment() in serializers.ts).
+  "assignments:repair_assignments(*, evidence:repair_evidence(*)), reporter:profiles(*)";
 
 /** A complaint with every related row, mirroring ComplaintRepository.get(full=True). */
 export async function getComplaintFull(client: SupabaseClient, id: string): Promise<ComplaintRow | null> {

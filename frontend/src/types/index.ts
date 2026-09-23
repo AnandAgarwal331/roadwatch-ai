@@ -175,6 +175,7 @@ export interface AssignmentSummary {
   rework_reason: string | null;
   is_emergency: boolean;
   emergency_reason: string | null;
+  evidence: RepairEvidence[];
 }
 
 export interface ComplaintSummary {

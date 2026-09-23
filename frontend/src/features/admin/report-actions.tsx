@@ -5,6 +5,7 @@ import { BadgeCheck, Ban, Siren, SlidersHorizontal, Trash2, Undo2, UserPlus } fr
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { EvidenceImage } from "@/components/complaints/evidence-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -71,6 +72,92 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
 
   return (
     <>
+      {complaint.assignment ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Current assignment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">State</dt>
+                <dd className="font-medium">{complaint.assignment.status}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Due</dt>
+                <dd>
+                  {complaint.assignment.due_at
+                    ? formatDateTime(complaint.assignment.due_at)
+                    : "Not set"}
+                </dd>
+              </div>
+              {complaint.assignment.completed_at ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Completed</dt>
+                  <dd>{formatDateTime(complaint.assignment.completed_at)}</dd>
+                </div>
+              ) : null}
+              {complaint.assignment.rework_count > 0 ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Sent back for rework</dt>
+                  <dd>
+                    {complaint.assignment.rework_count} time
+                    {complaint.assignment.rework_count === 1 ? "" : "s"}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+
+            {complaint.assignment.notes ? (
+              <div className="mt-3 rounded-lg bg-muted/60 p-2.5 text-sm">
+                <p className="text-xs font-medium text-muted-foreground">What the crew reported</p>
+                <p className="mt-1 leading-relaxed">{complaint.assignment.notes}</p>
+              </div>
+            ) : null}
+
+            {complaint.assignment.evidence.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Evidence submitted ({complaint.assignment.evidence.length} photo
+                  {complaint.assignment.evidence.length === 1 ? "" : "s"})
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {complaint.assignment.evidence.map((item) => (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block overflow-hidden rounded-md border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <EvidenceImage
+                        src={item.url}
+                        alt={item.note ?? "Photo submitted as completion evidence"}
+                        className="aspect-square w-full object-cover transition-transform duration-200 hover:scale-105"
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : complaint.assignment.status === "COMPLETED" || complaint.assignment.status === "VERIFIED" ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                No evidence photos were attached to this submission.
+              </p>
+            ) : null}
+
+            {complaint.assignment.is_emergency ? (
+              <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
+                <Siren className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  The crew marked this an emergency
+                  {complaint.assignment.emergency_reason ? `: ${complaint.assignment.emergency_reason}` : "."}
+                </span>
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Actions</CardTitle>
@@ -147,54 +234,6 @@ export function AdminActions({ complaint }: { complaint: ComplaintDetail }) {
           </Button>
         </CardContent>
       </Card>
-
-      {complaint.assignment ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Current assignment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">State</dt>
-                <dd className="font-medium">{complaint.assignment.status}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">Due</dt>
-                <dd>
-                  {complaint.assignment.due_at
-                    ? formatDateTime(complaint.assignment.due_at)
-                    : "Not set"}
-                </dd>
-              </div>
-              {complaint.assignment.completed_at ? (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Completed</dt>
-                  <dd>{formatDateTime(complaint.assignment.completed_at)}</dd>
-                </div>
-              ) : null}
-              {complaint.assignment.rework_count > 0 ? (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Sent back for rework</dt>
-                  <dd>
-                    {complaint.assignment.rework_count} time
-                    {complaint.assignment.rework_count === 1 ? "" : "s"}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-            {complaint.assignment.is_emergency ? (
-              <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
-                <Siren className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>
-                  The crew marked this an emergency
-                  {complaint.assignment.emergency_reason ? `: ${complaint.assignment.emergency_reason}` : "."}
-                </span>
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
 
       <StatusDialog
         complaint={complaint}
@@ -545,6 +584,7 @@ function AssignDialog({ complaint, open, onOpenChange, onDone, onError }: Dialog
 
 function VerifyDialog({ complaint, open, onOpenChange, onDone, onError }: DialogProps) {
   const [note, setNote] = React.useState("");
+  const evidence = complaint.assignment?.evidence ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -565,6 +605,19 @@ function VerifyDialog({ complaint, open, onOpenChange, onDone, onError }: Dialog
             tells the person who reported it.
           </DialogDescription>
         </DialogHeader>
+
+        {evidence.length > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {evidence.map((item) => (
+              <EvidenceImage
+                key={item.id}
+                src={item.url}
+                alt={item.note ?? "Photo submitted as completion evidence"}
+                className="aspect-square w-full rounded-md border border-border object-cover"
+              />
+            ))}
+          </div>
+        ) : null}
 
         <Field id="verify-note" label="Note" hint="Optional. Recorded against the verification.">
           <Textarea
@@ -592,6 +645,7 @@ function VerifyDialog({ complaint, open, onOpenChange, onDone, onError }: Dialog
 function RejectRepairDialog({ complaint, open, onOpenChange, onDone, onError }: DialogProps) {
   const [reason, setReason] = React.useState("");
   const valid = reason.trim().length >= 3;
+  const evidence = complaint.assignment?.evidence ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -615,6 +669,19 @@ function RejectRepairDialog({ complaint, open, onOpenChange, onDone, onError }: 
             crew, the evidence they submitted is cleared, and they are told why.
           </DialogDescription>
         </DialogHeader>
+
+        {evidence.length > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {evidence.map((item) => (
+              <EvidenceImage
+                key={item.id}
+                src={item.url}
+                alt={item.note ?? "Photo submitted as completion evidence"}
+                className="aspect-square w-full rounded-md border border-border object-cover"
+              />
+            ))}
+          </div>
+        ) : null}
 
         <Field
           id="reject-repair-reason"

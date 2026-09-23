@@ -95,13 +95,19 @@ export function toPriorityResponse(complaint: any): Record<string, unknown> | nu
   };
 }
 
-const OPEN_ASSIGNMENT_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS", "COMPLETED"]);
+// The assignment a complaint's detail view should carry: everything short of
+// CANCELLED (a flagged/reassigned job that is no longer this complaint's
+// story). VERIFIED is included deliberately - a resolved report should still
+// show which crew did the work, its evidence and its rework history, not
+// have them vanish the moment the job succeeds. Named for what it keeps
+// showing, not "open" work, since a verified job is not open.
+const VISIBLE_ASSIGNMENT_STATUSES = new Set(["ASSIGNED", "IN_PROGRESS", "COMPLETED", "VERIFIED"]);
 
 // deno-lint-ignore no-explicit-any
 export function activeAssignment(assignments: any[] | null | undefined): Record<string, unknown> | null {
   const ordered = byCreatedAtAsc(assignments ?? []);
   for (let i = ordered.length - 1; i >= 0; i--) {
-    if (OPEN_ASSIGNMENT_STATUSES.has(ordered[i].status)) return ordered[i];
+    if (VISIBLE_ASSIGNMENT_STATUSES.has(ordered[i].status)) return ordered[i];
   }
   return null;
 }

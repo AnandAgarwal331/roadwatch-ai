@@ -52,7 +52,9 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
   const analysis = complaint.latest_analysis;
   const photo = complaint.images.find((image) => image.kind === "REPORT") ?? complaint.images[0];
-  const evidence = complaint.images.filter((image) => image.kind === "REPAIR_EVIDENCE");
+  // Completion photos live on the repair assignment, not among the
+  // complaint's own images - see AssignmentSummary.evidence.
+  const evidence = complaint.assignment?.evidence ?? [];
 
   // Mirrors the backend's own rule for POST /complaints/:id/analyze: only the
   // reporter, and only before the report is closed (resolved/rejected/

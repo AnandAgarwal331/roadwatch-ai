@@ -122,7 +122,9 @@ Deno.test("nextStep() gives the generic queue message otherwise", () => {
 // admin: toDetail's `assignment` field and admin.ts's toAdminSummary's
 // `assignment_status` both come from it, and both treat COMPLETED (a crew
 // has finished but nobody has approved it yet) as the "active" one an admin
-// still needs to act on - same as ASSIGNED or IN_PROGRESS.
+// still needs to act on - same as ASSIGNED or IN_PROGRESS. VERIFIED is kept
+// visible too, just no longer as something to act on - see the dedicated
+// test below.
 function assignment(overrides: Record<string, unknown> = {}) {
   return {
     id: "a1",
@@ -142,8 +144,13 @@ Deno.test("activeAssignment() finds the assigned or in-progress one too", () => 
   assertEquals(activeAssignment([assignment({ status: "IN_PROGRESS" })])?.status, "IN_PROGRESS");
 });
 
-Deno.test("activeAssignment() is null once the repair has been verified", () => {
-  assertEquals(activeAssignment([assignment({ status: "VERIFIED" })]), null);
+Deno.test("activeAssignment() still surfaces a verified repair, not just open ones", () => {
+  // A resolved report should keep showing which crew did the work, its
+  // evidence and its rework history - not have them vanish the moment the
+  // job succeeds. See report-actions.tsx's "Current assignment" card and
+  // the public report page's before/after evidence, both of which read
+  // this field regardless of whether the job is still open.
+  assertEquals(activeAssignment([assignment({ status: "VERIFIED" })])?.status, "VERIFIED");
 });
 
 Deno.test("activeAssignment() is null for a cancelled assignment, and for no assignment at all", () => {
